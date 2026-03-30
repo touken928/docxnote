@@ -267,3 +267,9 @@ curl -fsSL -o .claude/docxnote/SKILL.md https://raw.githubusercontent.com/touken
 ```
 
 Point your agent at that file for install steps, suggested patterns, and caveats.
+
+---
+
+## License
+
+Licensed under the Apache License, Version 2.0. See `LICENSE` in the repository root.

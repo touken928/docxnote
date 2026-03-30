@@ -282,3 +282,9 @@ curl -fsSL -o .claude/docxnote/SKILL.md https://raw.githubusercontent.com/touken
 ```
 
 在对话环境中使用本库时，让 Agent 优先参考该文件中的安装方式、推荐代码骨架与注意事项。
+
+---
+
+## 许可证
+
+本项目采用 Apache License 2.0 许可证。详见仓库根目录的 `LICENSE`。

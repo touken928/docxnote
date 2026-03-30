@@ -3,6 +3,7 @@ name = "docxnote"
 version = "0.1.1"
 description = "Lightweight DOCX comment engine based on text view API"
 readme = "README.md"
+license = { text = "Apache-2.0" }
 authors = [
     { name = "touken", email = "touken928@foxmail.com" }
 ]
