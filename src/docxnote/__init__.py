@@ -3,5 +3,6 @@
 from .document import DocxDocument
 from .paragraph import Paragraph
 from .table import Table, Cell
+from .comments import Comment
 
-__all__ = ["DocxDocument", "Paragraph", "Table", "Cell"]
+__all__ = ["DocxDocument", "Paragraph", "Table", "Cell", "Comment"]

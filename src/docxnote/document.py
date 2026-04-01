@@ -4,11 +4,14 @@ import io
 import threading
 import zipfile
 from datetime import datetime, timezone
+from typing import Optional, Tuple, List
+
 from lxml import etree
 
 from .paragraph import Paragraph
-from .table import Table
+from .table import Table, Cell
 from .namespaces import NS
+from .comments import Comment
 
 
 def _parse_w_comment_date(value: str | None) -> datetime:
@@ -49,7 +52,8 @@ class DocxDocument:
         self._zip = zipfile.ZipFile(io.BytesIO(zip_data))
         self._document_xml = None
         self._body = None
-        self._comments = []
+        self._comments: list[tuple[int, str, str, datetime]] = []
+        self._comment_index: dict[int, tuple[str, str, datetime]] = {}
         self._comment_id_counter = 0
         self._lock = threading.RLock()
 
@@ -76,6 +80,7 @@ class DocxDocument:
         else:
             # 默认不保留：清空 comments 列表，并移除 document.xml 中的批注标记
             self._comments = []
+            self._comment_index = {}
             self._comment_id_counter = 0
             self._strip_all_comment_markers()
 
@@ -113,19 +118,28 @@ class DocxDocument:
             comments_tree = etree.fromstring(comments_xml)
 
             max_id = -1
+            self._comments.clear()
+            self._comment_index.clear()
+
             for comment in comments_tree:
                 comment_id_str = comment.get(f"{{{NS['w']}}}id")
-                if comment_id_str:
+                if not comment_id_str:
+                    continue
+                try:
                     comment_id = int(comment_id_str)
-                    max_id = max(max_id, comment_id)
+                except ValueError:
+                    continue
+                max_id = max(max_id, comment_id)
 
-                    # 提取批注内容
-                    author = comment.get(f"{{{NS['w']}}}author", "")
-                    text = self._extract_comment_text(comment)
-                    date_str = comment.get(f"{{{NS['w']}}}date")
-                    date_val = _parse_w_comment_date(date_str)
+                # 提取批注内容
+                author = comment.get(f"{{{NS['w']}}}author", "") or ""
+                text = self._extract_comment_text(comment)
+                date_str = comment.get(f"{{{NS['w']}}}date")
+                date_val = _parse_w_comment_date(date_str)
 
-                    self._comments.append((comment_id, text, author, date_val))
+                meta = (text, author, date_val)
+                self._comments.append((comment_id, *meta))
+                self._comment_index[comment_id] = meta
 
             # 设置下一个批注 ID
             self._comment_id_counter = max_id + 1
@@ -188,8 +202,17 @@ class DocxDocument:
             when = date if date is not None else _default_new_comment_date()
             comment_id = self._comment_id_counter
             self._comment_id_counter += 1
-            self._comments.append((comment_id, text, author, when))
+
+            meta = (text, author, when)
+            self._comments.append((comment_id, *meta))
+            self._comment_index[comment_id] = meta
             return comment_id
+
+    def _get_comment_meta(
+        self, comment_id: int
+    ) -> Optional[Tuple[str, str, datetime]]:
+        """根据 comment_id 返回批注的 (text, author, date)。"""
+        return self._comment_index.get(comment_id)
 
     def render(self) -> bytes:
         """生成新的 DOCX 并返回 bytes"""
@@ -378,3 +401,30 @@ class DocxDocument:
             ct_xml.append(override_elem)
 
         return etree.tostring(ct_xml, xml_declaration=True, encoding="UTF-8")
+
+    def comments(self) -> tuple[Comment, ...]:
+        """返回文档中所有批注（按文档遍历顺序）。"""
+
+        def _iter_blocks_from_cell(cell: Cell):
+            for inner in cell.blocks():
+                if isinstance(inner, Paragraph):
+                    yield inner
+                elif isinstance(inner, Table):
+                    yield from _iter_blocks_from_table(inner)
+
+        def _iter_blocks_from_table(table: Table):
+            rows, cols = table.shape()
+            for r in range(rows):
+                for c in range(cols):
+                    cell = table[r, c]
+                    yield from _iter_blocks_from_cell(cell)
+
+        with self._lock:
+            result: list[Comment] = []
+            for block in self.blocks():
+                if isinstance(block, Paragraph):
+                    result.extend(block.comments)
+                elif isinstance(block, Table):
+                    for para in _iter_blocks_from_table(block):
+                        result.extend(para.comments)
+            return tuple(result)

@@ -117,6 +117,27 @@ doc.render()
 
 表示 Word 段落。
 
+---
+
+### 批注阅读（Comment）
+
+```python
+from docxnote import Comment
+```
+
+每个附着在段落上的批注都会以 `Comment` 对象的形式暴露在 `paragraph.comments` 中：
+
+```python
+for c in paragraph.comments:
+    assert isinstance(c, Comment)
+    print(c.start, c.end, c.text, c.author)
+```
+
+其中：
+
+- `start` / `end` 是基于 `paragraph.text` 的字符区间，遵循 Python 切片约定 \([start, end)\)。
+- `Comment.date` 对应 `comments.xml` 中的 `w:date`（UTC 时间）。
+
 #### text
 
 ```python
@@ -154,6 +175,22 @@ docxnote 会自动处理：
 - 批注锚点
 - comments.xml 写入
 - 文档关系更新
+
+---
+
+### 文档级批注遍历
+
+```python
+comments = doc.comments()
+for c in comments:
+    # c.paragraph 为所属 Paragraph
+    ...
+```
+
+`doc.comments()` 会遍历整个文档（包含表格及嵌套表格中的段落），按文档顺序返回所有批注。其行为受 `keep_comments` 影响：
+
+- `keep_comments=False`（默认）：仅暴露当前会话新增的批注，不暴露原始 DOCX 中旧批注。
+- `keep_comments=True`：既保留又暴露原有批注，并允许在其基础上继续添加新批注。
 
 ---
 

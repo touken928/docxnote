@@ -133,6 +133,20 @@ text: str = paragraph.text
 - 保留 `\n` 与 `\t`。
 - **不要** 假定它已经按句子或 Run 划分，所有偏移均基于此原始字符串。
 
+### 读取段落上的批注
+
+```python
+from docxnote import Comment
+
+for c in paragraph.comments:
+    assert isinstance(c, Comment)
+    print(c.start, c.end, c.text, c.author)
+```
+
+- `c.start` / `c.end`：基于 `paragraph.text` 的字符区间，遵循 Python 切片约定 \([start, end)\)。
+- `c.text`：批注内容（多段以换行分隔）。
+- `c.date`：批注时间，对应 `comments.xml` 中的 `w:date`（UTC 时间）。
+
 ### 添加批注
 
 ```python
@@ -228,6 +242,18 @@ if bottom - top > 1 or right - left > 1:
 - 未合并单元格的边界为 `(r, c, r+1, c+1)`。
 - 即使访问被合并覆盖的坐标（例如一个合并区的内部格子），`table[r, c]` 也会返回指向同一逻辑单元格的 `Cell` 对象。
 
+### 文档级批注遍历
+
+```python
+comments = doc.comments()
+for c in comments:
+    # c.paragraph 为所属 Paragraph，可以用来定位上下文
+    ...
+```
+
+- `doc.comments()` 会遍历整个文档（包括表格和嵌套表格中的段落），按文档顺序返回所有批注。
+- 当你需要「导出所有批注」「按作者/位置筛选批注」时，优先使用此接口。
+
 ## 常见模式与推荐实践
 
 ### 1. 基于规则的文档审阅
@@ -310,6 +336,8 @@ if not (paragraph.text or "").strip():
 - **判断类型**: `isinstance(block, Paragraph)` / `isinstance(block, Table)`
 - **段落文本**: `paragraph.text`
 - **添加批注**: `paragraph.comment("内容", start=0, end=None, author="谁", date=None)`
+- **读取段落批注**: `for c in paragraph.comments: ...`
+- **读取全部批注**: `for c in doc.comments(): ...`
 - **表格尺寸**: `rows, cols = table.shape()`
 - **访问单元格**: `cell = table[r, c]`
 - **单元格内容块**: `cell.blocks()`

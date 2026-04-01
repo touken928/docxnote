@@ -1,9 +1,12 @@
 """段落处理"""
 
 from datetime import datetime
+from typing import List, Tuple
 
 from lxml import etree
+
 from .namespaces import NS
+from .comments import Comment
 
 
 class Paragraph:
@@ -13,6 +16,7 @@ class Paragraph:
         self._element = element
         self._document = document
         self._text_cache = None
+        self._comments_cache: List[Comment] | None = None
 
     @property
     def text(self) -> str:
@@ -63,6 +67,9 @@ class Paragraph:
 
             # 在段落中插入批注标记
             self._insert_comment_markers(comment_id, start, end)
+
+            # 新增批注后，清空本段落的批注缓存
+            self._comments_cache = None
 
     def _insert_comment_markers(self, comment_id: int, start: int, end: int):
         """在指定位置插入批注起止标记"""
@@ -148,3 +155,88 @@ class Paragraph:
         # 在结束 run 之后插入结束标记和引用（注意索引偏移）
         parent.insert(end_run_pos + 2, comment_end)
         parent.insert(end_run_pos + 3, comment_ref_run)
+
+    def _iter_comment_ranges(self) -> List[Tuple[int, int, int]]:
+        """按段落文本坐标返回本段落上的批注范围列表。
+
+        返回列表元素为 ``(comment_id, start, end)``，其中 start/end 基于
+        ``paragraph.text`` 的字符索引区间 [start, end)。
+        """
+        ranges: list[tuple[int, int, int]] = []
+        current_pos = 0
+        open_starts: dict[int, int] = {}
+
+        for child in self._element:
+            tag = etree.QName(child.tag).localname
+
+            if tag == "commentRangeStart":
+                cid_attr = child.get(f"{{{NS['w']}}}id")
+                if cid_attr is None:
+                    continue
+                try:
+                    cid = int(cid_attr)
+                except ValueError:
+                    continue
+                # 如果同一 ID 已有开始位置，则不覆盖（保留最早的）
+                open_starts.setdefault(cid, current_pos)
+            elif tag == "commentRangeEnd":
+                cid_attr = child.get(f"{{{NS['w']}}}id")
+                if cid_attr is None:
+                    continue
+                try:
+                    cid = int(cid_attr)
+                except ValueError:
+                    continue
+                start_pos = open_starts.pop(cid, current_pos)
+                if start_pos <= current_pos:
+                    ranges.append((cid, start_pos, current_pos))
+            elif tag == "r":
+                # run 内文本长度（与 Paragraph.text 计算方式保持一致）
+                run_len = 0
+                for r_child in child:
+                    r_tag = etree.QName(r_child.tag).localname
+                    if r_tag == "t":
+                        if r_child.text:
+                            run_len += len(r_child.text)
+                    elif r_tag == "br":
+                        run_len += 1
+                    elif r_tag == "tab":
+                        run_len += 1
+                current_pos += run_len
+
+        return ranges
+
+    @property
+    def comments(self) -> tuple[Comment, ...]:
+        """返回附着在本段落上的所有批注（按文档顺序）。"""
+        with self._document._lock:
+            if self._comments_cache is not None:
+                return tuple(self._comments_cache)
+
+            ranges = self._iter_comment_ranges()
+            result: list[Comment] = []
+
+            for comment_id, start, end in ranges:
+                meta = self._document._get_comment_meta(comment_id)
+                if meta is None:
+                    continue
+                text, author, date_val = meta
+
+                # 限制范围在合法区间内，避免异常 XML 造成越界
+                para_len = len(self.text)
+                safe_start = max(0, min(start, para_len))
+                safe_end = max(safe_start, min(end, para_len))
+
+                result.append(
+                    Comment(
+                        paragraph=self,
+                        start=safe_start,
+                        end=safe_end,
+                        text=text,
+                        author=author,
+                        date=date_val,
+                    )
+                )
+
+            self._comments_cache = result
+            return tuple(result)

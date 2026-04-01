@@ -112,6 +112,24 @@ A single `DocxDocument` instance is safe to use from multiple threads (internall
 
 Represents a Word paragraph.
 
+---
+
+### Comment reading
+
+```python
+from docxnote import Comment
+```
+
+Each comment attached to a paragraph is exposed as a `Comment` object via `paragraph.comments`:
+
+```python
+for c in paragraph.comments:
+    assert isinstance(c, Comment)
+    print(c.start, c.end, c.text, c.author)
+```
+
+The `start`/`end` indices are character offsets into `paragraph.text` (Python slicing semantics, `[start, end)`). The `Comment.date` field corresponds to the `w:date` stored in `comments.xml` (UTC).
+
 #### text
 
 ```python
@@ -144,6 +162,19 @@ paragraph.comment("Needs change", start=3, end=8, author="Alice")
 ```
 
 docxnote handles run splitting, anchors, `comments.xml`, and relationship updates.
+
+---
+
+### Reading comments on the whole document
+
+```python
+comments = doc.comments()
+for c in comments:
+    # c.paragraph is the owning Paragraph
+    ...
+```
+
+This walks all paragraphs in the document (including inside tables and nested tables) and returns all comments in document order. Respecting `keep_comments`: with `keep_comments=False` only comments added in the current session are visible; with `keep_comments=True` existing comments from the DOCX are also exposed.
 
 ---
 
