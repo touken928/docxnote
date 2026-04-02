@@ -1,12 +1,27 @@
-# Docxnote
+<h1 align="center">Docxnote</h1>
 
-**[简体中文](README_zh-CN.md)**
+<p align="center">
+  <strong>Lightweight DOCX comment engine: add and read Word comments from plain paragraph text, with only an <code>lxml</code> dependency.</strong>
+</p>
 
-**docxnote** is a lightweight **DOCX comment engine** with only an `lxml` dependency, for automating Word comments.
+<p align="center">
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg?style=for-the-badge&logo=python" alt="Python 3.12+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge" alt="License: Apache 2.0"></a>
+  <a href="https://pypi.org/project/docxnote/"><img src="https://img.shields.io/pypi/v/docxnote.svg?style=for-the-badge&logo=pypi&logoColor=white&label=pypi" alt="PyPI version"></a>
+  <a href="https://github.com/touken928/docxnote/stargazers"><img src="https://img.shields.io/github/stars/touken928/docxnote?style=for-the-badge&color=yellow&logo=github" alt="GitHub stars"></a>
+</p>
 
-It works directly on **WordprocessingML**, treating a DOCX as **ZIP + XML**, and exposes a **text-oriented API**.
+<p align="center">
+  <a href="README_zh.md">简体中文</a>
+</p>
 
-Unlike typical DOCX libraries, docxnote **hides Word’s Run structure entirely**; everything is based on **paragraph strings**.
+---
+
+## Overview
+
+**docxnote** automates **Word comments** (annotations) without touching runs: you traverse `Paragraph` / `Table` / `Cell`, call `paragraph.comment(...)`, and optionally read comments via `paragraph.comments` and `doc.comments()`.
+
+**Repository:** [touken928/docxnote](https://github.com/touken928/docxnote)
 
 ---
 

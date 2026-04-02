@@ -1,12 +1,27 @@
-# Docxnote
+<h1 align="center">Docxnote</h1>
 
-**[English](README.md)** | 简体中文
+<p align="center">
+  <strong>轻量级 DOCX 批注引擎：在段落纯文本上添加与读取 Word 批注，仅依赖 <code>lxml</code>。</strong>
+</p>
 
-**docxnote** 是一个轻量级 **DOCX 批注引擎**，仅依赖 lxml，用于自动化添加 Word 批注。
+<p align="center">
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg?style=for-the-badge&logo=python" alt="Python 3.12+"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge" alt="License: Apache 2.0"></a>
+  <a href="https://pypi.org/project/docxnote/"><img src="https://img.shields.io/pypi/v/docxnote.svg?style=for-the-badge&logo=pypi&logoColor=white&label=pypi" alt="PyPI version"></a>
+  <a href="https://github.com/touken928/docxnote/stargazers"><img src="https://img.shields.io/github/stars/touken928/docxnote?style=for-the-badge&color=yellow&logo=github" alt="GitHub stars"></a>
+</p>
 
-该库直接操作 **WordprocessingML**，将 DOCX 视为 **ZIP + XML** 文档，并提供一个 **基于文本视图的 API**。
+<p align="center">
+  <a href="README.md">English</a> &middot; 简体中文
+</p>
 
-与传统 DOCX 库不同，docxnote **完全隐藏 Word 的 Run 结构**，所有操作都基于 **段落字符串**。
+---
+
+## 概览
+
+**docxnote** 用于自动化 **Word 批注**：遍历 `Paragraph` / `Table` / `Cell`，用 `paragraph.comment(...)` 添加批注，并可通过 `paragraph.comments` 与 `doc.comments()` 读取批注。
+
+**仓库：** [touken928/docxnote](https://github.com/touken928/docxnote)
 
 ---
 

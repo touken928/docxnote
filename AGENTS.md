@@ -1,19 +1,19 @@
 ## Docxnote AGENTS 指南
 
-**目标**：保持实现简洁可靠，并在代码、`README.md`（英文）、`README_zh-CN.md`（中文）、`SKILL.md` 之间**同步功能与用法**。
+**目标**：保持实现简洁可靠，并在代码、`README.md`（英文）、`README_zh.md`（中文）、`SKILL.md` 之间**同步功能与用法**。
 
 ---
 
 ## 文档分工
 
 - **`AGENTS.md`**：开发/维护本库时看的内部说明（依赖、测试、设计习惯）。
-- **`README.md`**：英文项目概览与核心 API；**`README_zh-CN.md`**：中文对照，与英文同步维护。
+- **`README.md`**：英文项目概览与核心 API；**`README_zh.md`**：中文对照，与英文同步维护。
 - **`SKILL.md`**：给使用本库的对话型 / coding Agent，看如何在回答中**调用 `docxnote`**，内容尽量精简。
 
 公共 API 或行为变更时：
 
 - 更新实现与测试；
-- 同步更新 `README.md` 与 `README_zh-CN.md` 的简要说明；
+- 同步更新 `README.md` 与 `README_zh.md` 的简要说明；
 - 同步更新 `SKILL.md` 的示例与推荐用法。
 
 ---
