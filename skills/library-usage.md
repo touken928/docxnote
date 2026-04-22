@@ -1,16 +1,10 @@
----
-name: docxnote
-description: >
-  Helps the agent correctly use the docxnote Python library to read DOCX files,
-  traverse paragraphs and tables, and add Word comments (annotations) based on
-  plain-text ranges. Use when working with .docx review automation, adding or
-  preserving comments, processing tables (including merged or nested tables),
-  or when the user mentions docxnote, Word comments, or DOCX batch review.
----
+# docxnote · Python 库编码使用指南
 
-# Docxnote – DOCX 批注引擎使用指南
+面向在代码中集成 **docxnote** 的对话型 / coding Agent：解析 DOCX、按段落文本添加或读取 Word 批注、处理表格（含合并与嵌套）、使用可寻址路径（path）做稳定引用等。**命令行工具若后续提供，将单独用文档说明**（例如 `cli-usage.md`），本文件只覆盖 Python API。
 
-本技能帮助你在 AICoding 中**正确理解并使用 `docxnote` 库**，完成基于 DOCX 文档的自动批注、表格处理等任务。
+**与仓库文档的关系：** 结构化 API 参考以仓库内 **[docs/API.md](../docs/API.md)**（英文）与 **[docs/API_zh.md](../docs/API_zh.md)**（简体中文）为准；本文件侧重可复制的骨架、模式与速查。
+
+---
 
 ## 关键认识
 
@@ -140,9 +134,10 @@ from docxnote import Comment
 
 for c in paragraph.comments:
     assert isinstance(c, Comment)
-    print(c.start, c.end, c.text, c.author)
+    print(c.path, c.start, c.end, c.text, c.author)
 ```
 
+- `c.path`：批注的可寻址路径，形如 `"t:0/r:0/c:0/p:0#3"`，可传回 `doc.resolve(...)`。
 - `c.start` / `c.end`：基于 `paragraph.text` 的字符区间，遵循 Python 切片约定 \([start, end)\)。
 - `c.text`：批注内容（多段以换行分隔）。
 - `c.date`：批注时间，对应 `comments.xml` 中的 `w:date`（UTC 时间）。
@@ -150,14 +145,17 @@ for c in paragraph.comments:
 ### 添加批注
 
 ```python
-paragraph.comment(
+new = paragraph.comment(
     text,           # 批注内容（字符串）
     start=0,        # 起始字符索引（含）
     end=None,       # 结束字符索引（不含），None 表示到段落末尾
     author="docxnote",  # 批注作者
     date=None,          # datetime，None 表示当前系统时间
 )
+# new.path 可用作稳定引用，例如 "p:0#0"
 ```
+
+- `paragraph.comment(...)` 返回新建的 `Comment`，其 `path` 可在后续用 `doc.resolve(path)` 回溯。
 
 - 索引基于 Python 字符串切片约定：\([start, end)\)。
 - `date` 为 `None` 时使用当前系统时间（带时区）；写入 Word 的 `w:date` 为 UTC。无时区的 `datetime` 按 UTC 写入。
@@ -254,6 +252,32 @@ for c in comments:
 - `doc.comments()` 会遍历整个文档（包括表格和嵌套表格中的段落），按文档顺序返回所有批注。
 - 当你需要「导出所有批注」「按作者/位置筛选批注」时，优先使用此接口。
 
+### 可寻址单元（path）
+
+每个 `Paragraph` / `Table` / `Cell` / `Comment` 都带有稳定的字符串 `path`，形式如下：
+
+- `p:N`、`t:N`：顶层或单元格内第 N 个段落 / 表格。
+- `t:N/r:R/c:C`：表格内单元格（合并时指向原点）。
+- `t:N/r:R/c:C/p:M`：单元格内段落（可递归嵌套表格）。
+- `<paragraph_path>#<id>`：段落上的一条批注，`<id>` 即 Word 内部 `w:id`。
+
+常用接口：
+
+```python
+for block in doc.blocks():
+    print(block.path)
+
+para = doc.resolve("p:0")                        # -> Paragraph
+cell = doc.resolve("t:0/r:1/c:2")                # -> Cell
+c    = doc.resolve("t:0/r:1/c:2/p:0#3")          # -> Comment
+
+for p in doc.iter_paragraphs():
+    # 按文档顺序遍历所有段落（含表格/嵌套表格/合并去重）
+    ...
+```
+
+- 用法场景：**需要把某段/某批注稳定地记录到日志、报告或缓存里**，之后再通过 path 取回来。
+
 ## 常见模式与推荐实践
 
 ### 1. 基于规则的文档审阅
@@ -335,12 +359,13 @@ if not (paragraph.text or "").strip():
 - **遍历块**: `for block in doc.blocks():`
 - **判断类型**: `isinstance(block, Paragraph)` / `isinstance(block, Table)`
 - **段落文本**: `paragraph.text`
-- **添加批注**: `paragraph.comment("内容", start=0, end=None, author="谁", date=None)`
+- **添加批注**: `comment = paragraph.comment("内容", start=0, end=None, author="谁", date=None)`
 - **读取段落批注**: `for c in paragraph.comments: ...`
 - **读取全部批注**: `for c in doc.comments(): ...`
+- **按 path 回溯**: `doc.resolve("p:0")` / `doc.resolve("t:0/r:0/c:0/p:0#3")`
+- **遍历所有段落**: `for p in doc.iter_paragraphs(): p.path`
 - **表格尺寸**: `rows, cols = table.shape()`
 - **访问单元格**: `cell = table[r, c]`
 - **单元格内容块**: `cell.blocks()`
 - **合并单元格边界**: `top, left, bottom, right = cell.bounds()`
 - **输出 DOCX**: `output_bytes = doc.render()`
-

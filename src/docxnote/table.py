@@ -4,16 +4,23 @@ from __future__ import annotations
 
 from lxml import etree
 from .namespaces import NS
+from .paths import build_segment, join_path
 
 
 class Table:
     """表示 Word 表格"""
 
-    def __init__(self, element, document):
+    def __init__(self, element, document, path: str = ""):
         self._element = element
         self._document = document
+        self._path = path
         self._grid = None
         self._build_grid()
+
+    @property
+    def path(self) -> str:
+        """表格的可寻址路径（例如 ``"t:0"`` 或 ``"t:0/r:1/c:2/t:0"``）。"""
+        return self._path
 
     def _build_grid(self):
         """构建表格网格，处理合并单元格"""
@@ -67,11 +74,25 @@ class Table:
                 if is_vmerge_continue:
                     origin = active_vmerge.get(col_idx)
                     if origin is None:
-                        origin = Cell(tc, self._document, r_idx, col_idx, colspan)
+                        origin = Cell(
+                            tc,
+                            self._document,
+                            r_idx,
+                            col_idx,
+                            colspan,
+                            path=self._cell_path(r_idx, col_idx),
+                        )
                     else:
                         origin._grow_rowspan_to(r_idx + 1)
                 else:
-                    origin = Cell(tc, self._document, r_idx, col_idx, colspan)
+                    origin = Cell(
+                        tc,
+                        self._document,
+                        r_idx,
+                        col_idx,
+                        colspan,
+                        path=self._cell_path(r_idx, col_idx),
+                    )
                     # 新单元格覆盖同列：意味着上方 vMerge 在该列结束
                     for i in range(colspan):
                         active_vmerge.pop(col_idx + i, None)
@@ -120,9 +141,21 @@ class Table:
             matrix_row: list[Cell] = []
             for c in range(max_cols):
                 matrix_row.append(
-                    row_map.get(c) or Cell(None, self._document, r_idx, c, 1)
+                    row_map.get(c)
+                    or Cell(
+                        None,
+                        self._document,
+                        r_idx,
+                        c,
+                        1,
+                        path=self._cell_path(r_idx, c),
+                    )
                 )
             self._matrix.append(matrix_row)
+
+    def _cell_path(self, row: int, col: int) -> str:
+        """根据本表格路径计算单元格路径（以单元格原点坐标为准）。"""
+        return join_path(self._path, build_segment("r", row), build_segment("c", col))
 
     def shape(self) -> tuple[int, int]:
         """返回表格尺寸 (rows, cols)"""
@@ -152,13 +185,27 @@ class Table:
 class Cell:
     """表示表格单元格"""
 
-    def __init__(self, element, document, row: int, col: int, colspan: int = 1):
+    def __init__(
+        self,
+        element,
+        document,
+        row: int,
+        col: int,
+        colspan: int = 1,
+        path: str = "",
+    ):
         self._element = element
         self._document = document
         self._row = row
         self._col = col
         self._colspan = colspan
         self._rowspan = 1
+        self._path = path
+
+    @property
+    def path(self) -> str:
+        """单元格的可寻址路径，基于合并原点坐标（例如 ``"t:0/r:1/c:2"``）。"""
+        return self._path
 
     def _grow_rowspan_to(self, bottom_exclusive: int) -> None:
         """将 rowspan 扩展到指定 bottom（左闭右开）"""
@@ -173,12 +220,18 @@ class Cell:
             from .paragraph import Paragraph
 
             blocks: list = []
+            para_idx = 0
+            table_idx = 0
             for child in self._element:
                 tag = etree.QName(child.tag).localname
                 if tag == "p":
-                    blocks.append(Paragraph(child, self._document))
+                    child_path = join_path(self._path, build_segment("p", para_idx))
+                    blocks.append(Paragraph(child, self._document, path=child_path))
+                    para_idx += 1
                 elif tag == "tbl":
-                    blocks.append(Table(child, self._document))
+                    child_path = join_path(self._path, build_segment("t", table_idx))
+                    blocks.append(Table(child, self._document, path=child_path))
+                    table_idx += 1
             return tuple(blocks)
 
     def bounds(self) -> tuple[int, int, int, int]:

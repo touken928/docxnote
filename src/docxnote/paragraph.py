@@ -7,16 +7,23 @@ from lxml import etree
 
 from .namespaces import NS
 from .comments import Comment
+from .paths import comment_path
 
 
 class Paragraph:
     """表示 Word 段落"""
 
-    def __init__(self, element, document):
+    def __init__(self, element, document, path: str = ""):
         self._element = element
         self._document = document
+        self._path = path
         self._text_cache = None
         self._comments_cache: List[Comment] | None = None
+
+    @property
+    def path(self) -> str:
+        """段落的可寻址路径（例如 ``"p:0"`` 或 ``"t:0/r:1/c:2/p:0"``）。"""
+        return self._path
 
     @property
     def text(self) -> str:
@@ -52,24 +59,48 @@ class Paragraph:
         *,
         author: str = "docxnote",
         date: datetime | None = None,
-    ):
-        """为段落文本范围添加批注。
+    ) -> Comment:
+        """为段落文本范围添加批注，并返回对应的 :class:`Comment` 对象。
 
         Args:
             date: 批注时间；默认 ``None`` 表示使用当前系统时间（带时区）。
+
+        Returns:
+            新增批注对应的 :class:`Comment`，其 ``path`` 为
+            ``"<paragraph.path>#<comment_id>"``。
         """
         with self._document._lock:
+            para_len = len(self.text)
             if end is None:
-                end = len(self.text)
+                end = para_len
+            safe_start = max(0, min(start, para_len))
+            safe_end = max(safe_start, min(end, para_len))
 
-            # 获取批注 ID
             comment_id = self._document.add_comment(text, author, date=date)
-
-            # 在段落中插入批注标记
             self._insert_comment_markers(comment_id, start, end)
 
-            # 新增批注后，清空本段落的批注缓存
+            # 新增批注后清空本段落的批注缓存
             self._comments_cache = None
+
+            meta = self._document._get_comment_meta(comment_id)
+            if meta is None:
+                stored_text, stored_author, stored_date = (
+                    text,
+                    author,
+                    (date if date is not None else datetime.now().astimezone()),
+                )
+            else:
+                stored_text, stored_author, stored_date = meta
+
+            return Comment(
+                paragraph=self,
+                path=comment_path(self._path, comment_id),
+                start=safe_start,
+                end=safe_end,
+                text=stored_text,
+                author=stored_author,
+                date=stored_date,
+            )
 
     def _insert_comment_markers(self, comment_id: int, start: int, end: int):
         """在指定位置插入批注起止标记"""
@@ -230,6 +261,7 @@ class Paragraph:
                 result.append(
                     Comment(
                         paragraph=self,
+                        path=comment_path(self._path, comment_id),
                         start=safe_start,
                         end=safe_end,
                         text=text,

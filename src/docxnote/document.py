@@ -4,7 +4,7 @@ import io
 import threading
 import zipfile
 from datetime import datetime, timezone
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple
 
 from lxml import etree
 
@@ -12,6 +12,7 @@ from .paragraph import Paragraph
 from .table import Table, Cell
 from .namespaces import NS
 from .comments import Comment
+from .paths import build_segment, parse_path
 
 
 def _parse_w_comment_date(value: str | None) -> datetime:
@@ -172,19 +173,35 @@ class DocxDocument:
         return "".join(parts)
 
     def blocks(self) -> tuple[Paragraph | Table, ...]:
-        """返回文档中的块级元素（元组）"""
+        """返回文档中的块级元素（元组），每个元素都带有 ``path``。"""
         with self._lock:
             if self._body is None:
                 return ()
 
             blocks: list[Paragraph | Table] = []
+            para_idx = 0
+            table_idx = 0
             for child in self._body:
                 tag = etree.QName(child.tag).localname
                 if tag == "p":
-                    blocks.append(Paragraph(child, self))
+                    blocks.append(
+                        Paragraph(child, self, path=build_segment("p", para_idx))
+                    )
+                    para_idx += 1
                 elif tag == "tbl":
-                    blocks.append(Table(child, self))
+                    blocks.append(
+                        Table(child, self, path=build_segment("t", table_idx))
+                    )
+                    table_idx += 1
             return tuple(blocks)
+
+    def iter_paragraphs(self):
+        """按文档顺序迭代所有段落（包含表格与嵌套表格中的段落）。
+
+        每个段落对象都带有可寻址路径 ``paragraph.path``。
+        """
+        with self._lock:
+            yield from _walk_paragraphs(self.blocks())
 
     def add_comment(
         self,
@@ -208,9 +225,7 @@ class DocxDocument:
             self._comment_index[comment_id] = meta
             return comment_id
 
-    def _get_comment_meta(
-        self, comment_id: int
-    ) -> Optional[Tuple[str, str, datetime]]:
+    def _get_comment_meta(self, comment_id: int) -> Optional[Tuple[str, str, datetime]]:
         """根据 comment_id 返回批注的 (text, author, date)。"""
         return self._comment_index.get(comment_id)
 
@@ -404,27 +419,142 @@ class DocxDocument:
 
     def comments(self) -> tuple[Comment, ...]:
         """返回文档中所有批注（按文档遍历顺序）。"""
-
-        def _iter_blocks_from_cell(cell: Cell):
-            for inner in cell.blocks():
-                if isinstance(inner, Paragraph):
-                    yield inner
-                elif isinstance(inner, Table):
-                    yield from _iter_blocks_from_table(inner)
-
-        def _iter_blocks_from_table(table: Table):
-            rows, cols = table.shape()
-            for r in range(rows):
-                for c in range(cols):
-                    cell = table[r, c]
-                    yield from _iter_blocks_from_cell(cell)
-
         with self._lock:
             result: list[Comment] = []
-            for block in self.blocks():
-                if isinstance(block, Paragraph):
-                    result.extend(block.comments)
-                elif isinstance(block, Table):
-                    for para in _iter_blocks_from_table(block):
-                        result.extend(para.comments)
+            for para in self.iter_paragraphs():
+                result.extend(para.comments)
             return tuple(result)
+
+    def resolve(self, path: str) -> Paragraph | Table | Cell | Comment:
+        """根据路径字符串定位对应的对象。
+
+        支持的路径形式见 :mod:`docxnote.paths`。例如：
+
+        - ``"p:0"``                     顶层第 0 个段落
+        - ``"t:0"``                     顶层第 0 个表格
+        - ``"t:0/r:1/c:2"``             表格中的某个单元格
+        - ``"t:0/r:1/c:2/p:0"``         单元格内的段落
+        - ``"p:0#5"``                   段落 ``p:0`` 上 ``w:id=5`` 的批注
+
+        Raises:
+            ValueError: 路径格式非法
+            LookupError: 路径结构合法但指向不存在的对象
+        """
+        segments, comment_id = parse_path(path)
+
+        with self._lock:
+            current = self._navigate_segments(segments)
+
+            if comment_id is None:
+                return current
+
+            if not isinstance(current, Paragraph):
+                raise ValueError(
+                    "comment path must target a paragraph, got "
+                    f"{type(current).__name__}"
+                )
+            for c in current.comments:
+                if c.path == path:
+                    return c
+            raise LookupError(
+                f"comment {comment_id} not found on paragraph {current.path!r}"
+            )
+
+    def _navigate_segments(
+        self, segments: list[tuple[str, int]]
+    ) -> Paragraph | Table | Cell:
+        """按 segments 从文档根节点向下定位。"""
+        if not segments:
+            raise ValueError("empty segments")
+
+        first_kind, first_idx = segments[0]
+        blocks = self.blocks()
+
+        if first_kind == "p":
+            paras = [b for b in blocks if isinstance(b, Paragraph)]
+            if first_idx >= len(paras):
+                raise LookupError(f"paragraph index out of range: p:{first_idx}")
+            current: Paragraph | Table | Cell = paras[first_idx]
+        elif first_kind == "t":
+            tables = [b for b in blocks if isinstance(b, Table)]
+            if first_idx >= len(tables):
+                raise LookupError(f"table index out of range: t:{first_idx}")
+            current = tables[first_idx]
+        else:
+            raise ValueError(f"first segment must be 'p' or 't', got {first_kind!r}")
+
+        i = 1
+        while i < len(segments):
+            kind, idx = segments[i]
+
+            if isinstance(current, Table):
+                if kind != "r":
+                    raise ValueError(f"after table expected 'r:', got {kind!r} in path")
+                if i + 1 >= len(segments):
+                    raise ValueError("path has 'r:' without following 'c:'")
+                kind2, idx2 = segments[i + 1]
+                if kind2 != "c":
+                    raise ValueError(f"after 'r:' expected 'c:', got {kind2!r}")
+                rows, cols = current.shape()
+                if idx >= rows or idx2 >= cols:
+                    raise LookupError(
+                        f"cell out of bounds: r:{idx}/c:{idx2} in {current.path!r}"
+                    )
+                current = current[idx, idx2]
+                i += 2
+                continue
+
+            if isinstance(current, Cell):
+                sub = current.blocks()
+                if kind == "p":
+                    ps = [b for b in sub if isinstance(b, Paragraph)]
+                    if idx >= len(ps):
+                        raise LookupError(
+                            f"paragraph index out of range: p:{idx} in {current.path!r}"
+                        )
+                    current = ps[idx]
+                elif kind == "t":
+                    ts = [b for b in sub if isinstance(b, Table)]
+                    if idx >= len(ts):
+                        raise LookupError(
+                            f"table index out of range: t:{idx} in {current.path!r}"
+                        )
+                    current = ts[idx]
+                else:
+                    raise ValueError(f"after cell expected 'p:' or 't:', got {kind!r}")
+                i += 1
+                continue
+
+            if isinstance(current, Paragraph):
+                raise ValueError(
+                    "paragraph has no navigable children; use '#<id>' for comments"
+                )
+
+            raise ValueError(
+                f"unexpected object in navigation: {type(current).__name__}"
+            )
+
+        return current
+
+
+def _walk_paragraphs(blocks, _seen_cells: set[int] | None = None):
+    """按文档顺序递归遍历 blocks，yield 每一个 Paragraph。
+
+    对合并单元格按单元格身份去重，避免同一段落被多次 yield。
+    """
+    if _seen_cells is None:
+        _seen_cells = set()
+
+    for block in blocks:
+        if isinstance(block, Paragraph):
+            yield block
+        elif isinstance(block, Table):
+            rows, cols = block.shape()
+            for r in range(rows):
+                for c in range(cols):
+                    cell = block[r, c]
+                    cell_key = id(cell)
+                    if cell_key in _seen_cells:
+                        continue
+                    _seen_cells.add(cell_key)
+                    yield from _walk_paragraphs(cell.blocks(), _seen_cells)
