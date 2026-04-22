@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <a href="README_zh.md">简体中文</a>
+  <a href="docs/README_zh.md">简体中文</a>
 </p>
 
 ---
@@ -101,8 +101,7 @@ Full Python API (methods, parameters, comments, paths, tables, and advanced patt
 - [docs/API.md](docs/API.md) — English  
 - [docs/API_zh.md](docs/API_zh.md) — 简体中文  
 - [docs/CLI.md](docs/CLI.md) / [docs/CLI_zh.md](docs/CLI_zh.md) — CLI reference  
-
-Index: [docs/README.md](docs/README.md).
+- [docs/README_zh.md](docs/README_zh.md) — 简体中文 overview (same scope as README)
 
 ---
 

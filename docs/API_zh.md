@@ -1,6 +1,6 @@
 # Python API 参考
 
-**docxnote** 的完整接口与用法说明。极简示例见项目根目录 [README_zh.md](../README_zh.md)。
+**docxnote** 的完整接口与用法说明。极简示例见 [README_zh.md](README_zh.md)。
 
 ---
 

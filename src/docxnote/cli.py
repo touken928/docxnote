@@ -76,7 +76,9 @@ def cmd_list(args: argparse.Namespace) -> int:
     else:
         for p in paras:
             if args.text:
-                text = _truncate(p.text, limit).replace("\n", "\\n").replace("\t", "\\t")
+                text = (
+                    _truncate(p.text, limit).replace("\n", "\\n").replace("\t", "\\t")
+                )
                 print(f"{p.path}\t{text}")
             else:
                 print(p.path)
@@ -312,18 +314,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p_show.set_defaults(func=cmd_show)
 
     # comments
-    p_cmts = sub.add_parser(
-        "comments", help="list every Word comment in the document"
-    )
+    p_cmts = sub.add_parser("comments", help="list every Word comment in the document")
     p_cmts.add_argument("file", type=Path, help="input .docx file")
     p_cmts.add_argument("--json", action="store_true", help="output JSON")
     _add_keep_comments(p_cmts, default=True)
     p_cmts.set_defaults(func=cmd_comments)
 
     # annotate
-    p_ann = sub.add_parser(
-        "annotate", help="add comment(s) and write a new .docx"
-    )
+    p_ann = sub.add_parser("annotate", help="add comment(s) and write a new .docx")
     p_ann.add_argument("input", type=Path, help="input .docx file")
     p_ann.add_argument("output", type=Path, help="output .docx file")
     p_ann.add_argument("--path", help='paragraph path, e.g. "p:0"')

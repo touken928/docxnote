@@ -18,9 +18,7 @@ def _write(tmp_path: Path, name: str, data: bytes) -> Path:
 
 
 class TestListCommand:
-    def test_plain_output_contains_paragraph_paths(
-        self, capsys, tmp_path, simple_doc
-    ):
+    def test_plain_output_contains_paragraph_paths(self, capsys, tmp_path, simple_doc):
         infile = _write(tmp_path, "in.docx", simple_doc)
         rc = main(["list", str(infile)])
         assert rc == 0
@@ -40,9 +38,7 @@ class TestListCommand:
 
     def test_text_preview_is_truncated(self, capsys, tmp_path, simple_doc):
         infile = _write(tmp_path, "in.docx", simple_doc)
-        rc = main(
-            ["list", str(infile), "--text", "--text-limit", "3", "--json"]
-        )
+        rc = main(["list", str(infile), "--text", "--text-limit", "3", "--json"])
         assert rc == 0
         payload = json.loads(capsys.readouterr().out)
         # 至少有一个文本被截断

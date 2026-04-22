@@ -6,13 +6,13 @@
 
 <p align="center">
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg?style=for-the-badge&logo=python" alt="Python 3.12+"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge" alt="License: Apache 2.0"></a>
+  <a href="../LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge" alt="License: Apache 2.0"></a>
   <a href="https://pypi.org/project/docxnote/"><img src="https://img.shields.io/pypi/v/docxnote.svg?style=for-the-badge&logo=pypi&logoColor=white&label=pypi" alt="PyPI version"></a>
   <a href="https://github.com/touken928/docxnote/stargazers"><img src="https://img.shields.io/github/stars/touken928/docxnote?style=for-the-badge&color=yellow&logo=github" alt="GitHub stars"></a>
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> &middot; 简体中文
+  <a href="../README.md">English</a> &middot; 简体中文
 </p>
 
 ---
@@ -91,7 +91,7 @@ docxnote annotate input.docx output.docx --path p:0 --text "请修改"
 docxnote annotate input.docx output.docx --spec ops.json --keep-comments
 ```
 
-完整说明：[docs/CLI_zh.md](docs/CLI_zh.md) · [docs/CLI.md](docs/CLI.md)。
+完整说明：[CLI_zh.md](CLI_zh.md) · [CLI.md](CLI.md)。
 
 ---
 
@@ -99,17 +99,15 @@ docxnote annotate input.docx output.docx --spec ops.json --keep-comments
 
 完整 Python API（方法、参数、批注、路径、表格与高级用法）：
 
-- [docs/API_zh.md](docs/API_zh.md) — 简体中文  
-- [docs/API.md](docs/API.md) — English  
-- [docs/CLI_zh.md](docs/CLI_zh.md) / [docs/CLI.md](docs/CLI.md) — CLI 参考  
-
-索引：[docs/README.md](docs/README.md)。
+- [API_zh.md](API_zh.md) — 简体中文  
+- [API.md](API.md) — English  
+- [CLI_zh.md](CLI_zh.md) / [CLI.md](CLI.md) — CLI 参考  
 
 ---
 
 ## 测试
 
-所有测试文档使用 python-docx 动态生成，不依赖外部文件，详见 [tests/README.md](tests/README.md)。
+所有测试文档使用 python-docx 动态生成，不依赖外部文件，详见 [tests/README.md](../tests/README.md)。
 
 ---
 

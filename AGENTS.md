@@ -1,17 +1,16 @@
 ## Docxnote AGENTS 指南
 
-**目标**：保持实现简洁可靠，并在代码、`README.md`、`README_zh.md`、`docs/API.md`、`docs/API_zh.md`、`docs/CLI.md`、`docs/CLI_zh.md`、`skills/SKILL.md`、`skills/library-usage.md`、`skills/cli-usage.md` 之间**同步功能与用法**。
+**目标**：保持实现简洁可靠，并在代码、`README.md`、`docs/README_zh.md`、`docs/API.md`、`docs/API_zh.md`、`docs/CLI.md`、`docs/CLI_zh.md`、`skills/SKILL.md`、`skills/library-usage.md`、`skills/cli-usage.md` 之间**同步功能与用法**。
 
 ---
 
 ## 文档分工
 
 - **`AGENTS.md`**：开发/维护本库时看的内部说明（依赖、测试、设计习惯）。
-- **`README.md`** / **`README_zh.md`**：项目概览、安装、极简快速开始、CLI 一屏介绍；**不写长 API / CLI 细节**。
+- **`README.md`**（英文入口）/**`docs/README_zh.md`**（中文入口）：项目概览、安装、极简快速开始、CLI 一屏介绍；**不写长 API / CLI 细节**。
 - **`docs/`**：仓库内权威参考。
   - **`docs/API.md`** / **`docs/API_zh.md`**：完整 Python API。
   - **`docs/CLI.md`** / **`docs/CLI_zh.md`**：完整 CLI 参考（子命令、选项、退出码、JSON 结构）。
-  - **`docs/README.md`**：文档目录索引。
 - **`skills/SKILL.md`**：Agent 入口，**概述 docxnote 能力与文档索引**，保持简短。
 - **`skills/library-usage.md`**：面向 Agent 的 **Python 编码方案**（工作流、示例、常见误解、速查表），与 `docs/API*.md` 对齐。
 - **`skills/cli-usage.md`**：面向 Agent 的 **CLI 使用方案**（locate → annotate → verify、模式、坑点、速查），与 `docs/CLI*.md` 对齐。
@@ -19,7 +18,7 @@
 公共 API 或行为变更时：
 
 - 更新实现与测试（含 `tests/test_cli.py`）；
-- 同步更新 `README.md` 与 `README_zh.md` 的简要说明；
+- 同步更新 `README.md` 与 `docs/README_zh.md` 的简要说明；
 - 同步更新 **`docs/API.md`** 与 **`docs/API_zh.md`**（完整 Python API）；
 - 涉及命令行时同步更新 **`docs/CLI.md`** 与 **`docs/CLI_zh.md`**；
 - 同步更新 `skills/SKILL.md` 概述（若有整体能力变化）、`skills/library-usage.md` 与（CLI 变更时）`skills/cli-usage.md` 的示例与推荐用法。
