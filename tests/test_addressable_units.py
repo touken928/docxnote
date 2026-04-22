@@ -67,9 +67,7 @@ class TestNestedTablePaths:
         inner_cell = inner[1, 0]
         assert inner_cell.path.startswith(inner.path + "/r:")
 
-        inner_para = next(
-            b for b in inner_cell.blocks() if isinstance(b, Paragraph)
-        )
+        inner_para = next(b for b in inner_cell.blocks() if isinstance(b, Paragraph))
         assert inner_para.path.startswith(inner_cell.path + "/p:")
 
 
@@ -101,9 +99,7 @@ class TestResolveByPath:
     def test_resolve_roundtrip_text(self, simple_doc):
         """通过 path 回溯得到的段落文本与原对象一致。"""
         doc = DocxDocument.parse(simple_doc)
-        original = next(
-            b for b in doc.blocks() if isinstance(b, Paragraph) and b.text
-        )
+        original = next(b for b in doc.blocks() if isinstance(b, Paragraph) and b.text)
         same = doc.resolve(original.path)
         assert isinstance(same, Paragraph)
         assert same.text == original.text
@@ -178,9 +174,13 @@ class TestCommentPathField:
     def test_comment_path_stable_after_render(self, simple_doc):
         doc = DocxDocument.parse(simple_doc)
         para = next(b for b in doc.blocks() if isinstance(b, Paragraph) and b.text)
-        added = para.comment("hi", start=0, end=2, author="u", date=datetime(
-            2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc
-        ))
+        added = para.comment(
+            "hi",
+            start=0,
+            end=2,
+            author="u",
+            date=datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
+        )
 
         out = doc.render()
         doc2 = DocxDocument.parse(out, keep_comments=True)

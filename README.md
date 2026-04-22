@@ -75,12 +75,32 @@ with open("output.docx", "wb") as f:
 
 ---
 
+## CLI
+
+Installing `docxnote` adds a console script of the same name. Every read
+command supports `--json`, every write command takes an explicit output path,
+and they all share the library's addressable paths (`p:0`, `t:0/r:1/c:2/p:0`,
+`p:0#3`, ...).
+
+```
+docxnote list input.docx --text --json
+docxnote show input.docx "t:0/r:1/c:2/p:0"
+docxnote comments input.docx --json
+docxnote annotate input.docx output.docx --path p:0 --text "please revise"
+docxnote annotate input.docx output.docx --spec ops.json --keep-comments
+```
+
+Full reference: [docs/CLI.md](docs/CLI.md) · [docs/CLI_zh.md](docs/CLI_zh.md).
+
+---
+
 ## Documentation
 
 Full Python API (methods, parameters, comments, paths, tables, and advanced patterns):
 
 - [docs/API.md](docs/API.md) — English  
 - [docs/API_zh.md](docs/API_zh.md) — 简体中文  
+- [docs/CLI.md](docs/CLI.md) / [docs/CLI_zh.md](docs/CLI_zh.md) — CLI reference  
 
 Index: [docs/README.md](docs/README.md).
 

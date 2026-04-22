@@ -78,12 +78,30 @@ with open("output.docx", "wb") as f:
 
 ---
 
+## 命令行
+
+安装 `docxnote` 会注册同名命令。所有读命令支持 `--json`，所有写命令必须显式指定
+输出文件，全部子命令使用与库一致的可寻址路径（`p:0` / `t:0/r:1/c:2/p:0` / `p:0#3` …）。
+
+```
+docxnote list input.docx --text --json
+docxnote show input.docx "t:0/r:1/c:2/p:0"
+docxnote comments input.docx --json
+docxnote annotate input.docx output.docx --path p:0 --text "请修改"
+docxnote annotate input.docx output.docx --spec ops.json --keep-comments
+```
+
+完整说明：[docs/CLI_zh.md](docs/CLI_zh.md) · [docs/CLI.md](docs/CLI.md)。
+
+---
+
 ## 文档
 
 完整 Python API（方法、参数、批注、路径、表格与高级用法）：
 
 - [docs/API_zh.md](docs/API_zh.md) — 简体中文  
 - [docs/API.md](docs/API.md) — English  
+- [docs/CLI_zh.md](docs/CLI_zh.md) / [docs/CLI.md](docs/CLI.md) — CLI 参考  
 
 索引：[docs/README.md](docs/README.md)。
 

@@ -1,6 +1,6 @@
 [project]
 name = "docxnote"
-version = "0.2.0"
+version = "0.3.0"
 description = "Lightweight DOCX comment engine based on text view API"
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -11,6 +11,9 @@ requires-python = ">=3.12"
 dependencies = [
     "lxml>=5.0.0",
 ]
+
+[project.scripts]
+docxnote = "docxnote.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.9.11,<0.10.0"]

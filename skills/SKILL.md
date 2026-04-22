@@ -1,11 +1,13 @@
 ---
 name: docxnote
 description: >
-  Lightweight Python library for DOCX Word comments: parse ZIP/XML, traverse
-  paragraphs and tables via plain text, add/read comments by character ranges,
-  merged/nested tables, stable address paths (resolve/iter_paragraphs). Use for
-  DOCX review automation or when the user mentions docxnote or Word comments.
-  Structured API: repo docs/API.md; agent-oriented patterns: skills/library-usage.md; CLI TBD.
+  Lightweight Python library + `docxnote` CLI for DOCX Word comments: parse
+  ZIP/XML, traverse paragraphs and tables via plain text, add/read comments by
+  character ranges, merged/nested tables, stable address paths
+  (resolve/iter_paragraphs, CLI operates on the same paths). Use for DOCX review
+  automation or when the user mentions docxnote or Word comments. Structured API:
+  repo docs/API.md; CLI: docs/CLI.md; agent patterns: skills/library-usage.md and
+  skills/cli-usage.md.
 ---
 
 # docxnote · 功能概述
@@ -20,6 +22,7 @@ description: >
 - **写批注**：`paragraph.comment(...)`；读批注：`paragraph.comments`、`doc.comments()`。
 - **保留旧批注**：解析时 `keep_comments=True`，否则默认剥离文档内原有批注标记后再写。
 - **可寻址单元**：`paragraph.path` / `Comment.path` 等；`doc.resolve(path)`、`doc.iter_paragraphs()`。
+- **命令行（`docxnote` CLI）**：`list` / `show` / `comments` / `annotate`，与库共用 path 系统，全部子命令支持 `--json`。
 - **线程**：同一 `DocxDocument` 实例内部用可重入锁保护，可多线程共用该实例。
 
 ## 文档索引
@@ -27,9 +30,10 @@ description: >
 | 文档 | 用途 |
 |------|------|
 | **[docs/API.md](../docs/API.md)** / **[docs/API_zh.md](../docs/API_zh.md)** | 仓库内 **完整 Python API**（方法、参数、路径、表格、高级用法）。 |
-| **[library-usage.md](library-usage.md)** | Agent 侧：**安装、工作流骨架、模式、常见误解、速查表**（与 `docs/API*.md` 对齐）。 |
+| **[docs/CLI.md](../docs/CLI.md)** / **[docs/CLI_zh.md](../docs/CLI_zh.md)** | 仓库内 **完整 CLI 参考**（子命令、参数、退出码、JSON 结构）。 |
+| **[library-usage.md](library-usage.md)** | Agent 侧：Python **安装、工作流骨架、模式、常见误解、速查表**。 |
+| **[cli-usage.md](cli-usage.md)** | Agent 侧：**CLI** 工作流（locate → annotate → verify）、模式、坑点、速查表。 |
 | **本文件（SKILL.md）** | 供 Agent 快速加载的**能力摘要**。 |
-| **CLI（规划）** | 命令行用法将单独成文（例如 `cli-usage.md`）。 |
 
 ## 何时用 docxnote
 
