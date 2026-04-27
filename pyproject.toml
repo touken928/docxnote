@@ -8,6 +8,17 @@ authors = [
     { name = "touken", email = "touken928@foxmail.com" }
 ]
 requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+    "Topic :: Text Processing :: Markup :: XML",
+]
 dependencies = [
     "lxml>=5.0.0",
 ]
