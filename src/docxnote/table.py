@@ -173,13 +173,16 @@ class Table:
         """返回 Cell 对象"""
         row, col = key
         matrix = getattr(self, "_matrix", None)
-        if (
-            matrix is not None
-            and 0 <= row < len(matrix)
-            and 0 <= col < len(matrix[row])
-        ):
-            return matrix[row][col]
-        return Cell(None, self._document, row, col, 1)
+        if matrix is None:
+            raise IndexError(
+                f"cell ({row}, {col}) out of bounds for table {self.shape()}: "
+                "no matrix built"
+            )
+        if not (0 <= row < len(matrix) and 0 <= col < len(matrix[row])):
+            raise IndexError(
+                f"cell ({row}, {col}) out of bounds for table {self.shape()}"
+            )
+        return matrix[row][col]
 
 
 class Cell:

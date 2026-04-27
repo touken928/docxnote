@@ -76,6 +76,13 @@ class Paragraph:
             safe_start = max(0, min(start, para_len))
             safe_end = max(safe_start, min(end, para_len))
 
+            runs = list(self._element.findall(".//w:r", NS))
+            if not runs:
+                raise ValueError(
+                    f"Cannot add comment to paragraph '{self._path}': "
+                    "paragraph has no text runs"
+                )
+
             comment_id = self._document.add_comment(text, author, date=date)
             self._insert_comment_markers(comment_id, start, end)
 

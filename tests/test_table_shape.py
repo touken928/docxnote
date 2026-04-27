@@ -1,5 +1,6 @@
 """测试表格形状理解的一致性"""
 
+import pytest
 from io import BytesIO
 from docx import Document as PythonDocxDocument
 
@@ -332,3 +333,23 @@ class TestTableShape:
                 # 边界应该包含当前单元格
                 assert top <= r < bottom
                 assert left <= c < right
+
+    def test_out_of_bounds_cell_raises_index_error(self, table_doc):
+        """访问越界单元格应抛出 IndexError"""
+        dn_doc = DocxDocument.parse(table_doc)
+        tables = [b for b in dn_doc.blocks() if isinstance(b, Table)]
+        assert tables
+        table = tables[0]
+        rows, cols = table.shape()
+
+        with pytest.raises(IndexError, match="out of bounds"):
+            _ = table[-1, 0]
+
+        with pytest.raises(IndexError, match="out of bounds"):
+            _ = table[0, -1]
+
+        with pytest.raises(IndexError, match="out of bounds"):
+            _ = table[rows, 0]
+
+        with pytest.raises(IndexError, match="out of bounds"):
+            _ = table[0, cols]

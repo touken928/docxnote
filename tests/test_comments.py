@@ -1,9 +1,11 @@
 """测试批注功能"""
 
+import pytest
 import zipfile
 from datetime import datetime, timezone
 from io import BytesIO
 
+from docx import Document as PythonDocxDocument
 from lxml import etree
 
 from docxnote import DocxDocument, Paragraph, Table
@@ -139,19 +141,23 @@ class TestComments:
         output = doc.render()
         assert output is not None
 
-    def test_comment_on_empty_paragraph(self, simple_doc):
-        """测试为空段落添加批注"""
-        doc = DocxDocument.parse(simple_doc)
+    def test_comment_on_empty_paragraph_raises(self):
+        """空段落无法添加批注，应抛出 ValueError"""
+        pd_doc = PythonDocxDocument()
+        pd_doc.add_paragraph("")
+        buf = BytesIO()
+        pd_doc.save(buf)
+        buf.seek(0)
 
-        # 查找空段落
+        doc = DocxDocument.parse(buf.getvalue())
+
         for block in doc.blocks():
             if isinstance(block, Paragraph) and not block.text:
-                block.comment("空段落批注", author="tester")
-                break
+                with pytest.raises(ValueError, match="no text runs"):
+                    block.comment("空段落批注", author="tester")
+                return
 
-        # 应该能够渲染（即使批注可能不会显示）
-        output = doc.render()
-        assert output is not None
+        pytest.fail("No empty paragraph found in test document")
 
     def test_comment_beyond_text_length(self, simple_doc):
         """测试超出文本长度的批注"""
