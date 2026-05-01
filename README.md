@@ -113,7 +113,7 @@ Test documents are generated with python-docx; no checked-in DOCX fixtures. See 
 
 ## SKILL
 
-Agent-oriented docs live under [`skills`](https://github.com/touken928/docxnote/tree/main/skills) in [github.com/touken928/docxnote](https://github.com/touken928/docxnote). To mirror them under `.cursor/`, `.claude/`, or similar, **tell your coding agent to use that repository’s `skills` folder** and let it copy or fetch as needed.
+Agent-oriented docs live under [`skills/docxnote`](https://github.com/touken928/docxnote/tree/main/skills/docxnote) in [github.com/touken928/docxnote](https://github.com/touken928/docxnote). To mirror them under `.cursor/`, `.claude/`, or similar, **tell your coding agent to use that repository’s `skills/docxnote` folder** and let it copy or fetch as needed.
 
 ---
 

@@ -2,7 +2,7 @@
 
 面向在代码中集成 **docxnote** 的对话型 / coding Agent：解析 DOCX、按段落文本添加或读取 Word 批注、处理表格（含合并与嵌套）、使用可寻址路径（path）做稳定引用等。**命令行工具若后续提供，将单独用文档说明**（例如 `cli-usage.md`），本文件只覆盖 Python API。
 
-**与仓库文档的关系：** 结构化 API 参考以仓库内 **[docs/API.md](../docs/API.md)**（英文）与 **[docs/API_zh.md](../docs/API_zh.md)**（简体中文）为准；本文件侧重可复制的骨架、模式与速查。
+**与仓库文档的关系：** 结构化 API 参考以仓库内 `docs/API.md`（英文）与 `docs/API_zh.md`（简体中文）为准；本文件侧重可复制的骨架、模式与速查。
 
 ---
 

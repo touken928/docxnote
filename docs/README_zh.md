@@ -113,7 +113,7 @@ docxnote annotate input.docx output.docx --spec ops.json --keep-comments
 
 ## SKILL
 
-[github.com/touken928/docxnote](https://github.com/touken928/docxnote) 根目录下的 [`skills`](https://github.com/touken928/docxnote/tree/main/skills) 文件夹提供供对话型 / coding Agent 使用的技能说明。若需同步到本机 `.cursor/`、`.claude/` 等目录，**告知对话智能体从上述仓库获取 `skills` 文件夹**，由其自行复制或下载即可。
+[github.com/touken928/docxnote](https://github.com/touken928/docxnote) 根目录下的 [`skills/docxnote`](https://github.com/touken928/docxnote/tree/main/skills/docxnote) 文件夹提供供对话型 / coding Agent 使用的技能说明。若需同步到本机 `.cursor/`、`.claude/` 等目录，**告知对话智能体从上述仓库获取 `skills/docxnote` 文件夹**，由其自行复制或下载即可。
 
 ---
 

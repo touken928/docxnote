@@ -1,7 +1,7 @@
 # docxnote CLI usage (for agents)
 
 This document is the **Agent-oriented** guide for driving `docxnote` from a
-shell. The authoritative reference is [`docs/CLI.md`](../docs/CLI.md); this
+shell. The authoritative reference is `docs/CLI.md`; this
 file adds patterns, pitfalls and LLM-friendly workflows.
 
 ---
@@ -33,7 +33,7 @@ library:
 Every read command supports `--json`. Every object the library exposes has a
 stable `path` string; the CLI speaks exclusively in those strings.
 
-Path primer (full grammar in [`docs/API.md`](../docs/API.md#addressable-units-paths)):
+Path primer (full grammar in `docs/API.md`):
 
 ```
 p:N                        # N-th top-level paragraph
@@ -167,6 +167,6 @@ docxnote comments out.docx --json
 
 ## Related
 
-- [`docs/CLI.md`](../docs/CLI.md) — exhaustive CLI reference.
+- `docs/CLI.md` — exhaustive CLI reference.
 - [`library-usage.md`](library-usage.md) — Python library patterns.
-- [`docs/API.md`](../docs/API.md) — full Python API including path grammar.
+- `docs/API.md` — full Python API including path grammar.
