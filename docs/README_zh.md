@@ -19,7 +19,7 @@
 
 ## 概览
 
-**docxnote** 用于自动化 **Word 批注**：遍历 `Paragraph` / `Table` / `Cell`，用 `paragraph.comment(...)` 添加批注，并可通过 `paragraph.comments` 与 `doc.comments()` 读取批注。
+**docxnote** 用于自动化 **Word 批注**：遍历 `Paragraph` / `Table` / `Cell`，用 `paragraph.comment(...)` 添加批注，并可通过 `paragraph.comments` 与 `doc.comments()` 读取批注，而不需要手工处理 Run。
 
 **仓库：** [touken928/docxnote](https://github.com/touken928/docxnote)
 
@@ -46,10 +46,10 @@ from docxnote import DocxDocument, Paragraph, Table
 
 # 读取文档
 with open("document.docx", "rb") as f:
-    # 默认不保留原有批注（会清空）
+    # 默认会先剥离原有批注，再写入新批注
     doc = DocxDocument.parse(f.read())
 
-    # 如需保留原有批注并继续添加：
+    # 如需保留原有批注并继续追加：
     # doc = DocxDocument.parse(f.read(), keep_comments=True)
 
 # 遍历文档块
@@ -93,6 +93,9 @@ docxnote annotate input.docx output.docx --spec ops.json --keep-comments
 
 完整说明：[CLI_zh.md](CLI_zh.md) · [CLI.md](CLI.md)。
 
+`start` / `end` 始终基于 `paragraph.text` 的字符偏移，遵循 Python 切片语义
+`[start, end)`。docxnote 会自动处理 Run 拆分，包括超链接等嵌套段落内容中的精确锚点。
+
 ---
 
 ## 文档
@@ -102,6 +105,8 @@ docxnote annotate input.docx output.docx --spec ops.json --keep-comments
 - [API_zh.md](API_zh.md) — 简体中文  
 - [API.md](API.md) — English  
 - [CLI_zh.md](CLI_zh.md) / [CLI.md](CLI.md) — CLI 参考  
+
+当 `keep_comments=True` 时，原有批注会连同已有的批注 XML 元数据一起保留，并在其基础上追加新批注。
 
 ---
 

@@ -117,7 +117,7 @@ docxnote annotate in.docx out.docx \
   --author reviewer
 ```
 
-`--path` 与 `--text` 必须同时给出。`--start` 默认 `0`，`--end` 默认 *段末*。
+`--path` 与 `--text` 必须同时给出。`--start` 默认 `0`，`--end` 默认 *段末*。两者都基于目标段落 `text` 的字符偏移，遵循 `[start, end)` 语义。
 
 ### 批量（`--spec` JSON）
 
@@ -134,6 +134,7 @@ docxnote annotate in.docx out.docx \
 
 - `--keep-comments` / `--no-keep-comments`：控制**输入文档**原有批注是否在写入前保留；
   默认**剥离**（与 `DocxDocument.parse` 默认一致）。
+- 使用 `--keep-comments` 时，输出文件会继续保留原有批注以及它们已有的批注 XML 元数据。
 - 任一操作的 `path` 没解析到段落，则以状态码 `2` 退出，**不写任何文件**。
 - `--json` 时 stdout 为 `{"output": "<路径>", "added": [<批注对象>, ...]}`。
 

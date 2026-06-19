@@ -1,45 +1,45 @@
-# 测试
+# Tests
 
-## 安装依赖
+## Install dependencies
 
 ```bash
 uv sync --dev
 ```
 
-## 运行测试
+## Run tests
 
 ```bash
-# 运行所有测试
+# Run all tests
 uv run pytest
 
-# 详细输出
+# Verbose output
 uv run pytest -v
 
-# 运行特定文件
+# Run one file
 uv run pytest tests/xml/test_xml_validity.py
 ```
 
-## 测试覆盖
+## Test layout
 
 - **cli/**
-  - **test_cli.py** - CLI 命令行接口
+  - **test_cli.py** - CLI command behavior
 - **comments/**
-  - **test_comment_writing.py** - 批注添加与渲染
-  - **test_comment_reading.py** - 批注读取与 keep_comments 行为
-  - **test_comment_conflict_ranges.py** - 批注重叠与 Range/Run 拆分
-  - **test_existing_comment_preservation.py** - 保留现有批注与 comments.xml 元数据
+  - **test_comment_writing.py** - comment creation and render behavior
+  - **test_comment_reading.py** - comment reading, precise ranges, and `keep_comments`
+  - **test_comment_conflict_ranges.py** - overlapping comments and range/run splitting
+  - **test_existing_comment_preservation.py** - existing comment preservation and `comments.xml` metadata
 - **document/**
-  - **test_addressable_units.py** - 可寻址路径解析与段落遍历
-  - **test_paths.py** - 路径构建与解析
-  - **test_structure_comparison.py** - 文档结构与 python-docx 对比
-  - **test_thread_safety.py** - 线程安全
+  - **test_addressable_units.py** - addressable paths and paragraph traversal
+  - **test_paths.py** - path parsing and building helpers
+  - **test_structure_comparison.py** - structure parity with `python-docx`
+  - **test_thread_safety.py** - shared-document thread safety
 - **tables/**
-  - **test_cell_content.py** - 单元格文本提取
-  - **test_nested_tables.py** - 嵌套表格遍历
-  - **test_table_shape.py** - 表格形状与合并单元格
+  - **test_cell_content.py** - cell text extraction
+  - **test_nested_tables.py** - nested table traversal
+  - **test_table_shape.py** - table shape and merged-cell behavior
 - **text/**
-  - **test_paragraph_text.py** - 段落文本提取
+  - **test_paragraph_text.py** - paragraph text extraction
 - **xml/**
-  - **test_xml_validity.py** - XML 语法合法性
+  - **test_xml_validity.py** - package and XML validity
 
-所有测试文档使用 python-docx 动态生成，不依赖外部文件。
+All test documents are generated dynamically with `python-docx`; there are no checked-in DOCX fixtures.

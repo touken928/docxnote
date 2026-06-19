@@ -19,7 +19,7 @@
 
 ## Overview
 
-**docxnote** automates **Word comments** (annotations) without touching runs: you traverse `Paragraph` / `Table` / `Cell`, call `paragraph.comment(...)`, and optionally read comments via `paragraph.comments` and `doc.comments()`.
+**docxnote** automates **Word comments** (annotations) without manual run editing: you traverse `Paragraph` / `Table` / `Cell`, call `paragraph.comment(...)`, and optionally read comments via `paragraph.comments` and `doc.comments()`.
 
 **Repository:** [touken928/docxnote](https://github.com/touken928/docxnote)
 
@@ -46,10 +46,10 @@ from docxnote import DocxDocument, Paragraph, Table
 
 # Load document
 with open("document.docx", "rb") as f:
-    # By default existing comments are discarded
+    # By default existing comments are stripped before writing new ones
     doc = DocxDocument.parse(f.read())
 
-    # To keep existing comments and add more:
+    # To preserve existing comments and append more:
     # doc = DocxDocument.parse(f.read(), keep_comments=True)
 
 # Walk block-level content
@@ -92,6 +92,11 @@ docxnote annotate input.docx output.docx --spec ops.json --keep-comments
 
 Full reference: [docs/CLI.md](docs/CLI.md) · [docs/CLI_zh.md](docs/CLI_zh.md).
 
+`start` / `end` always refer to character offsets inside `paragraph.text`
+using Python slice semantics (`[start, end)`). docxnote handles run splitting,
+including ranges that fall inside hyperlinks and other nested paragraph
+containers.
+
 ---
 
 ## Documentation
@@ -102,6 +107,9 @@ Full Python API (methods, parameters, comments, paths, tables, and advanced patt
 - [docs/API_zh.md](docs/API_zh.md) — 简体中文  
 - [docs/CLI.md](docs/CLI.md) / [docs/CLI_zh.md](docs/CLI_zh.md) — CLI reference  
 - [docs/README_zh.md](docs/README_zh.md) — 简体中文 overview (same scope as README)
+
+When `keep_comments=True`, existing comments are preserved and re-emitted with
+their existing comment XML metadata, while new comments are appended on top.
 
 ---
 

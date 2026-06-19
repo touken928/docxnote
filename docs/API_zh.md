@@ -16,7 +16,7 @@ DocxDocument.parse(docx_bytes, *, keep_comments=False)
 
 解析 DOCX 并构建文档对象。
 
-- **keep_comments**: 是否保留原有批注。默认 `False`（清空所有原有批注）。如果你需要在“已有批注的 docx 上继续添加批注”并保留旧批注，请传 `True`。
+- **keep_comments**: 是否保留原有批注。默认 `False`（剥离原有批注）。如果你需要在“已有批注的 docx 上继续添加批注”并保留旧批注及其已有批注 XML 元数据，请传 `True`。
 
 ---
 
@@ -125,7 +125,7 @@ paragraph.comment(
 )
 ```
 
-为段落文本范围添加批注。写入 `comments.xml` 的 `w:date` 为 UTC（`…Z`）。若传入不带时区的 `datetime`，按 UTC 解释。
+为段落文本范围添加批注。范围始终基于 `paragraph.text` 的字符区间，并遵循 Python 切片语义 `[start, end)`。docxnote 会自动处理 Run 拆分与锚点放置，包括超链接等嵌套段落内容中的精确锚点。写入 `comments.xml` 的 `w:date` 为 UTC（`…Z`）。若传入不带时区的 `datetime`，按 UTC 解释。
 
 `paragraph.comment(...)` 会返回新建的 `Comment` 对象，它的 `path` 可以直接回传给 `doc.resolve(...)`。
 
@@ -159,7 +159,7 @@ for c in comments:
 `doc.comments()` 会遍历整个文档（包含表格及嵌套表格中的段落），按文档顺序返回所有批注。其行为受 `keep_comments` 影响：
 
 - `keep_comments=False`（默认）：仅暴露当前会话新增的批注，不暴露原始 DOCX 中旧批注。
-- `keep_comments=True`：既保留又暴露原有批注，并允许在其基础上继续添加新批注。
+- `keep_comments=True`：既保留又暴露原有批注，并允许在其基础上继续添加新批注；渲染时会继续保留这些已有批注。
 
 ---
 

@@ -16,7 +16,7 @@ DocxDocument.parse(docx_bytes, *, keep_comments=False)
 
 Parses the DOCX and returns a document object.
 
-- **keep_comments**: Whether to keep existing comments. Default `False` (strips them). Use `True` to preserve existing comments and append new ones.
+- **keep_comments**: Whether to keep existing comments. Default `False` (strips them). Use `True` to preserve existing comments, keep their existing comment XML metadata, and append new ones.
 
 ---
 
@@ -123,7 +123,7 @@ paragraph.comment(
 )
 ```
 
-Adds a comment spanning the given character range in the paragraph. The `w:date` value in `comments.xml` is stored in UTC (`…Z`). A naive `datetime` (no `tzinfo`) is treated as UTC.
+Adds a comment spanning the given character range in the paragraph. The range is always interpreted against `paragraph.text` using Python slice semantics (`[start, end)`). docxnote splits runs and places anchors automatically, including inside nested paragraph content such as hyperlinks. The `w:date` value in `comments.xml` is stored in UTC (`…Z`). A naive `datetime` (no `tzinfo`) is treated as UTC.
 
 `paragraph.comment(...)` returns the newly created `Comment`, whose `path` can be used later with `doc.resolve(...)`.
 
@@ -149,7 +149,7 @@ for c in comments:
     ...
 ```
 
-This walks all paragraphs in the document (including inside tables and nested tables) and returns all comments in document order. Respecting `keep_comments`: with `keep_comments=False` only comments added in the current session are visible; with `keep_comments=True` existing comments from the DOCX are also exposed.
+This walks all paragraphs in the document (including inside tables and nested tables) and returns all comments in document order. Respecting `keep_comments`: with `keep_comments=False` only comments added in the current session are visible; with `keep_comments=True` existing comments from the DOCX are also exposed and preserved on render.
 
 ---
 

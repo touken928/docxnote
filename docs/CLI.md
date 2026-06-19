@@ -127,7 +127,8 @@ docxnote annotate in.docx out.docx \
 ```
 
 `--path` and `--text` must be provided together. `--start` defaults to `0`
-and `--end` defaults to *end of paragraph*.
+and `--end` defaults to *end of paragraph*. Both are character offsets into
+the resolved paragraph's `text` field using `[start, end)` semantics.
 
 ### Batch via JSON spec
 
@@ -146,6 +147,8 @@ may be combined with `--spec` and is appended last.
 - `--keep-comments` / `--no-keep-comments` controls whether the *input*
   document's existing comments are preserved before adding new ones;
   default is to **strip** (matches the Python `DocxDocument.parse` default).
+- With `--keep-comments`, existing comments remain visible in the output and
+  their existing comment XML metadata is preserved.
 - If any op's `path` does not resolve to a `Paragraph`, the command exits
   with status `2` and **no file is written**.
 - With `--json`, stdout is `{"output": "<path>", "added": [<comment dict>, ...]}`.
