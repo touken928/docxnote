@@ -1,8 +1,11 @@
 """测试批注阅读功能（基于文本视图）"""
 
 from datetime import datetime, timezone
+from io import BytesIO
 
-from docxnote import DocxDocument, Paragraph, Comment
+from docx import Document as PythonDocxDocument
+
+from docxnote import Comment, DocxDocument, Paragraph
 
 
 def _first_paragraph_with_text(doc: DocxDocument) -> Paragraph:
@@ -13,6 +16,92 @@ def _first_paragraph_with_text(doc: DocxDocument) -> Paragraph:
 
 
 class TestCommentReading:
+    def test_partial_comment_inside_single_run_roundtrips_exact_range(self):
+        """单个 run 中的局部批注应保留精确字符范围。"""
+        pd_doc = PythonDocxDocument()
+        pd_doc.add_paragraph("ABCDE")
+
+        buffer = BytesIO()
+        pd_doc.save(buffer)
+        buffer.seek(0)
+
+        doc = DocxDocument.parse(buffer.getvalue())
+        para = _first_paragraph_with_text(doc)
+
+        created = para.comment("inner", start=1, end=3, author="tester")
+        assert (created.start, created.end) == (1, 3)
+
+        out = doc.render()
+        doc2 = DocxDocument.parse(out, keep_comments=True)
+        para2 = _first_paragraph_with_text(doc2)
+
+        matched = [c for c in para2.comments if c.text == "inner" and c.author == "tester"]
+        assert matched
+        assert (matched[0].start, matched[0].end) == (1, 3)
+        assert para2.text[matched[0].start : matched[0].end] == "BC"
+
+    def test_multiple_partial_comments_on_one_paragraph_roundtrip_exact_ranges(self):
+        """同一段话上的多次局部批注都应保留各自精确范围。"""
+        pd_doc = PythonDocxDocument()
+        pd_doc.add_paragraph("ABCDEFGHIJ")
+
+        buffer = BytesIO()
+        pd_doc.save(buffer)
+        buffer.seek(0)
+
+        doc = DocxDocument.parse(buffer.getvalue())
+        para = _first_paragraph_with_text(doc)
+
+        c1 = para.comment("first", start=1, end=3, author="u1")
+        c2 = para.comment("second", start=4, end=7, author="u2")
+        c3 = para.comment("third", start=7, end=9, author="u3")
+
+        assert (c1.start, c1.end) == (1, 3)
+        assert (c2.start, c2.end) == (4, 7)
+        assert (c3.start, c3.end) == (7, 9)
+
+        out = doc.render()
+        doc2 = DocxDocument.parse(out, keep_comments=True)
+        para2 = _first_paragraph_with_text(doc2)
+
+        matched = {(c.text, c.author): (c.start, c.end) for c in para2.comments}
+        assert matched[("first", "u1")] == (1, 3)
+        assert matched[("second", "u2")] == (4, 7)
+        assert matched[("third", "u3")] == (7, 9)
+        assert para2.text[1:3] == "BC"
+        assert para2.text[4:7] == "EFG"
+        assert para2.text[7:9] == "HI"
+
+    def test_comment_after_reparse_keeps_old_and_new_exact_ranges(self):
+        """渲染后再次批注，同段落上的旧范围与新范围都应准确。"""
+        pd_doc = PythonDocxDocument()
+        pd_doc.add_paragraph("ABCDEFGHIJ")
+
+        buffer = BytesIO()
+        pd_doc.save(buffer)
+        buffer.seek(0)
+
+        doc1 = DocxDocument.parse(buffer.getvalue())
+        para1 = _first_paragraph_with_text(doc1)
+        created1 = para1.comment("first", start=1, end=3, author="u1")
+        assert (created1.start, created1.end) == (1, 3)
+
+        out1 = doc1.render()
+        doc2 = DocxDocument.parse(out1, keep_comments=True)
+        para2 = _first_paragraph_with_text(doc2)
+        created2 = para2.comment("second", start=5, end=8, author="u2")
+        assert (created2.start, created2.end) == (5, 8)
+
+        out2 = doc2.render()
+        doc3 = DocxDocument.parse(out2, keep_comments=True)
+        para3 = _first_paragraph_with_text(doc3)
+
+        matched = {(c.text, c.author): (c.start, c.end) for c in para3.comments}
+        assert matched[("first", "u1")] == (1, 3)
+        assert matched[("second", "u2")] == (5, 8)
+        assert para3.text[1:3] == "BC"
+        assert para3.text[5:8] == "FGH"
+
     def test_paragraph_comments_after_writing_and_reparse(self, simple_doc):
         """写入批注后重新解析，能够从段落上读出批注列表。"""
         doc = DocxDocument.parse(simple_doc)

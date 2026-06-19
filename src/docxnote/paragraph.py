@@ -1,5 +1,6 @@
 """段落处理"""
 
+from copy import deepcopy
 from datetime import datetime
 from typing import List, Tuple
 
@@ -84,7 +85,7 @@ class Paragraph:
                 )
 
             comment_id = self._document.add_comment(text, author, date=date)
-            self._insert_comment_markers(comment_id, start, end)
+            self._insert_comment_markers(comment_id, safe_start, safe_end)
 
             # 新增批注后清空本段落的批注缓存
             self._comments_cache = None
@@ -111,41 +112,128 @@ class Paragraph:
 
     def _insert_comment_markers(self, comment_id: int, start: int, end: int):
         """在指定位置插入批注起止标记"""
-        runs = list(self._element.findall(".//w:r", NS))
+        runs = [child for child in self._element if etree.QName(child.tag).localname == "r"]
         if not runs:
             return
 
-        # 计算字符位置到 run 的映射
-        run_positions = []
+        # 先按结束位置、再按开始位置拆分，避免前一次拆分影响后续边界。
+        self._split_run_at_boundary(end)
+        self._split_run_at_boundary(start)
+
+        comment_start = etree.Element(
+            f"{{{NS['w']}}}commentRangeStart",
+            attrib={f"{{{NS['w']}}}id": str(comment_id)},
+        )
+        comment_end = etree.Element(
+            f"{{{NS['w']}}}commentRangeEnd",
+            attrib={f"{{{NS['w']}}}id": str(comment_id)},
+        )
+        comment_ref_run = etree.Element(f"{{{NS['w']}}}r")
+        etree.SubElement(
+            comment_ref_run,
+            f"{{{NS['w']}}}commentReference",
+            attrib={f"{{{NS['w']}}}id": str(comment_id)},
+        )
+
+        start_insert_pos = self._boundary_insert_index(start)
+        self._element.insert(start_insert_pos, comment_start)
+
+        end_insert_pos = self._boundary_insert_index(end)
+        self._element.insert(end_insert_pos, comment_end)
+        self._element.insert(end_insert_pos + 1, comment_ref_run)
+
+    def _split_run_at_boundary(self, boundary: int):
+        """在字符边界处拆分一个直接子 run。"""
+        run_positions = self._direct_run_positions()
+        for run, _idx, run_start, run_end in run_positions:
+            if run_start < boundary < run_end:
+                self._split_run(run, boundary - run_start)
+                return
+
+    def _direct_run_positions(self) -> list[tuple[etree._Element, int, int, int]]:
+        """返回段落直接子 run 的索引与字符范围。"""
+        result: list[tuple[etree._Element, int, int, int]] = []
         current_pos = 0
+        for idx, child in enumerate(self._element):
+            if etree.QName(child.tag).localname != "r":
+                continue
+            run_len = self._run_text_length(child)
+            result.append((child, idx, current_pos, current_pos + run_len))
+            current_pos += run_len
+        return result
 
-        for run in runs:
-            run_start = current_pos
-            run_text = ""
-            for t in run.findall(".//w:t", NS):
-                if t.text:
-                    run_text += t.text
-            run_end = current_pos + len(run_text)
-            run_positions.append((run, run_start, run_end, run_text))
-            current_pos = run_end
+    def _boundary_insert_index(self, boundary: int) -> int:
+        """返回指定字符边界在段落直接子元素中的插入位置。"""
+        run_positions = self._direct_run_positions()
+        for _run, child_idx, run_start, _run_end in run_positions:
+            if run_start >= boundary:
+                return child_idx
+        return len(self._element)
 
-        # 找到需要分割的 run
-        start_run_idx = None
-        end_run_idx = None
+    def _run_text_length(self, run) -> int:
+        """计算单个 run 在文本视图中的字符长度。"""
+        run_len = 0
+        for child in run:
+            tag = etree.QName(child.tag).localname
+            if tag == "t":
+                run_len += len(child.text or "")
+            elif tag in {"br", "tab"}:
+                run_len += 1
+        return run_len
 
-        for idx, (run, run_start, run_end, run_text) in enumerate(run_positions):
-            if start_run_idx is None and run_start <= start < run_end:
-                start_run_idx = idx
-            if end_run_idx is None and run_start < end <= run_end:
-                end_run_idx = idx
-
-        if start_run_idx is None or end_run_idx is None:
+    def _split_run(self, run, split_offset: int):
+        """按字符偏移拆分单个 run。"""
+        run_len = self._run_text_length(run)
+        if split_offset <= 0 or split_offset >= run_len:
             return
 
-        # 分割 run 并插入标记
-        self._split_and_mark(
-            run_positions, start_run_idx, end_run_idx, start, end, comment_id
-        )
+        before_run = self._slice_run(run, 0, split_offset)
+        after_run = self._slice_run(run, split_offset, run_len)
+        if before_run is None or after_run is None:
+            return
+
+        parent = self._element
+        children = list(parent)
+        run_idx = children.index(run)
+        parent.remove(run)
+        parent.insert(run_idx, before_run)
+        parent.insert(run_idx + 1, after_run)
+
+    def _slice_run(self, run, start: int, end: int):
+        """复制一个 run 的指定字符片段，保留 run 样式。"""
+        if start >= end:
+            return None
+
+        new_run = etree.Element(run.tag, attrib=dict(run.attrib), nsmap=run.nsmap)
+        copied_content = False
+        current_pos = 0
+
+        for child in run:
+            tag = etree.QName(child.tag).localname
+            if tag == "rPr":
+                new_run.append(deepcopy(child))
+                continue
+            if tag == "t":
+                text = child.text or ""
+                next_pos = current_pos + len(text)
+                slice_start = max(start, current_pos)
+                slice_end = min(end, next_pos)
+                if slice_start < slice_end:
+                    new_child = deepcopy(child)
+                    new_child.text = text[slice_start - current_pos : slice_end - current_pos]
+                    new_run.append(new_child)
+                    copied_content = True
+                current_pos = next_pos
+            elif tag in {"br", "tab"}:
+                next_pos = current_pos + 1
+                if start <= current_pos and next_pos <= end:
+                    new_run.append(deepcopy(child))
+                    copied_content = True
+                current_pos = next_pos
+
+        if not copied_content:
+            return None
+        return new_run
 
     def _split_and_mark(
         self, run_positions, start_idx, end_idx, start, end, comment_id
