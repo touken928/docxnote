@@ -17,7 +17,7 @@
 
 公共 API 或行为变更时：
 
-- 更新实现与测试（含 `tests/test_cli.py`）；
+- 更新实现与测试（含 `tests/cli/test_cli.py`）；
 - 同步更新 `README.md` 与 `docs/README_zh.md` 的简要说明；
 - 同步更新 **`docs/API.md`** 与 **`docs/API_zh.md`**（完整 Python API）；
 - 涉及命令行时同步更新 **`docs/CLI.md`** 与 **`docs/CLI_zh.md`**；
@@ -51,4 +51,4 @@
 - 只使用 stdlib（`argparse` + `json`），不引入新依赖。
 - 读命令 (`list` / `show` / `comments`) 必须支持 `--json`，输出 JSON schema 需稳定；新增字段可以，**不要重命名或删除既有字段**（测试里有断言，改动须同步更新）。
 - 写命令 (`annotate`) 必须：1) 采用显式 `INPUT OUTPUT` 参数，不支持原地覆盖；2) 任一 op 失败则整体失败、不写出文件；3) 失败时以退出码 `2` 退出并把错误写到 stderr。
-- 新加子命令或选项时：同步 `tests/test_cli.py`、`docs/CLI*.md`、`skills/docxnote/cli-usage.md`、`README*.md` CLI 段落。
+- 新加子命令或选项时：同步 `tests/cli/test_cli.py`、`docs/CLI*.md`、`skills/docxnote/cli-usage.md`、`README*.md` CLI 段落。
