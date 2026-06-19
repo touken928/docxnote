@@ -112,7 +112,7 @@ class Paragraph:
 
     def _insert_comment_markers(self, comment_id: int, start: int, end: int):
         """在指定位置插入批注起止标记"""
-        runs = [child for child in self._element if etree.QName(child.tag).localname == "r"]
+        runs = list(self._element.findall(".//w:r", NS))
         if not runs:
             return
 
@@ -135,40 +135,75 @@ class Paragraph:
             attrib={f"{{{NS['w']}}}id": str(comment_id)},
         )
 
-        start_insert_pos = self._boundary_insert_index(start)
-        self._element.insert(start_insert_pos, comment_start)
+        start_parent, start_insert_pos = self._boundary_insert_location(self._element, start)
+        start_parent.insert(start_insert_pos, comment_start)
 
-        end_insert_pos = self._boundary_insert_index(end)
-        self._element.insert(end_insert_pos, comment_end)
-        self._element.insert(end_insert_pos + 1, comment_ref_run)
+        end_parent, end_insert_pos = self._boundary_insert_location(self._element, end)
+        end_parent.insert(end_insert_pos, comment_end)
+        end_parent.insert(end_insert_pos + 1, comment_ref_run)
 
     def _split_run_at_boundary(self, boundary: int):
         """在字符边界处拆分一个直接子 run。"""
-        run_positions = self._direct_run_positions()
-        for run, _idx, run_start, run_end in run_positions:
+        run_positions = self._run_positions(self._element)
+        for run, parent, _idx, run_start, run_end in run_positions:
             if run_start < boundary < run_end:
-                self._split_run(run, boundary - run_start)
+                self._split_run(parent, run, boundary - run_start)
                 return
 
-    def _direct_run_positions(self) -> list[tuple[etree._Element, int, int, int]]:
-        """返回段落直接子 run 的索引与字符范围。"""
-        result: list[tuple[etree._Element, int, int, int]] = []
+    def _run_positions(
+        self, container
+    ) -> list[tuple[etree._Element, etree._Element, int, int, int]]:
+        """返回容器内所有 run 的父节点、索引与字符范围。"""
+        result: list[tuple[etree._Element, etree._Element, int, int, int]] = []
         current_pos = 0
-        for idx, child in enumerate(self._element):
-            if etree.QName(child.tag).localname != "r":
-                continue
-            run_len = self._run_text_length(child)
-            result.append((child, idx, current_pos, current_pos + run_len))
+        for run, parent, idx in self._iter_runs(container):
+            run_len = self._run_text_length(run)
+            result.append((run, parent, idx, current_pos, current_pos + run_len))
             current_pos += run_len
         return result
 
-    def _boundary_insert_index(self, boundary: int) -> int:
-        """返回指定字符边界在段落直接子元素中的插入位置。"""
-        run_positions = self._direct_run_positions()
-        for _run, child_idx, run_start, _run_end in run_positions:
-            if run_start >= boundary:
-                return child_idx
-        return len(self._element)
+    def _iter_runs(self, container):
+        """按文档顺序遍历容器内所有 run。"""
+        for idx, child in enumerate(container):
+            if etree.QName(child.tag).localname == "r":
+                yield child, container, idx
+            else:
+                yield from self._iter_runs(child)
+
+    def _node_text_length(self, node) -> int:
+        """计算节点在段落文本视图中的字符长度。"""
+        tag = etree.QName(node.tag).localname
+        if tag == "r":
+            return self._run_text_length(node)
+
+        total = 0
+        for child in node:
+            total += self._node_text_length(child)
+        return total
+
+    def _boundary_insert_location(self, container, boundary: int, current_pos: int = 0):
+        """返回指定字符边界应插入到的父节点和索引。"""
+        for idx, child in enumerate(container):
+            tag = etree.QName(child.tag).localname
+            if tag in {"commentRangeStart", "commentRangeEnd"}:
+                continue
+
+            child_len = self._node_text_length(child)
+            if child_len == 0:
+                continue
+
+            if tag == "r":
+                if boundary <= current_pos:
+                    return container, idx
+                current_pos += child_len
+                continue
+
+            next_pos = current_pos + child_len
+            if current_pos <= boundary <= next_pos:
+                return self._boundary_insert_location(child, boundary, current_pos)
+            current_pos = next_pos
+
+        return container, len(container)
 
     def _run_text_length(self, run) -> int:
         """计算单个 run 在文本视图中的字符长度。"""
@@ -181,7 +216,7 @@ class Paragraph:
                 run_len += 1
         return run_len
 
-    def _split_run(self, run, split_offset: int):
+    def _split_run(self, parent, run, split_offset: int):
         """按字符偏移拆分单个 run。"""
         run_len = self._run_text_length(run)
         if split_offset <= 0 or split_offset >= run_len:
@@ -192,7 +227,6 @@ class Paragraph:
         if before_run is None or after_run is None:
             return
 
-        parent = self._element
         children = list(parent)
         run_idx = children.index(run)
         parent.remove(run)
@@ -235,53 +269,6 @@ class Paragraph:
             return None
         return new_run
 
-    def _split_and_mark(
-        self, run_positions, start_idx, end_idx, start, end, comment_id
-    ):
-        """分割 run 并插入批注标记"""
-        # 简化实现：在第一个 run 前插入开始标记，在最后一个 run 后插入结束标记
-        start_run, start_pos, _, _ = run_positions[start_idx]
-        end_run, _, end_pos, _ = run_positions[end_idx]
-
-        # 创建批注范围开始标记
-        comment_start = etree.Element(
-            f"{{{NS['w']}}}commentRangeStart",
-            attrib={f"{{{NS['w']}}}id": str(comment_id)},
-        )
-
-        # 创建批注范围结束标记
-        comment_end = etree.Element(
-            f"{{{NS['w']}}}commentRangeEnd",
-            attrib={f"{{{NS['w']}}}id": str(comment_id)},
-        )
-
-        # 创建批注引用
-        comment_ref_run = etree.Element(f"{{{NS['w']}}}r")
-        etree.SubElement(
-            comment_ref_run,
-            f"{{{NS['w']}}}commentReference",
-            attrib={f"{{{NS['w']}}}id": str(comment_id)},
-        )
-
-        # 插入标记
-        parent = self._element
-
-        # 查找 run 在父元素中的位置
-        try:
-            children = list(parent)
-            start_run_pos = children.index(start_run)
-            end_run_pos = children.index(end_run)
-        except ValueError:
-            # run 不是直接子元素，跳过
-            return
-
-        # 在开始 run 之前插入开始标记
-        parent.insert(start_run_pos, comment_start)
-
-        # 在结束 run 之后插入结束标记和引用（注意索引偏移）
-        parent.insert(end_run_pos + 2, comment_end)
-        parent.insert(end_run_pos + 3, comment_ref_run)
-
     def _iter_comment_ranges(self) -> List[Tuple[int, int, int]]:
         """按段落文本坐标返回本段落上的批注范围列表。
 
@@ -289,10 +276,15 @@ class Paragraph:
         ``paragraph.text`` 的字符索引区间 [start, end)。
         """
         ranges: list[tuple[int, int, int]] = []
-        current_pos = 0
         open_starts: dict[int, int] = {}
 
-        for child in self._element:
+        self._walk_comment_ranges(self._element, 0, open_starts, ranges)
+
+        return ranges
+
+    def _walk_comment_ranges(self, container, current_pos, open_starts, ranges):
+        """递归遍历段落内容，收集批注范围。"""
+        for child in container:
             tag = etree.QName(child.tag).localname
 
             if tag == "commentRangeStart":
@@ -303,9 +295,10 @@ class Paragraph:
                     cid = int(cid_attr)
                 except ValueError:
                     continue
-                # 如果同一 ID 已有开始位置，则不覆盖（保留最早的）
                 open_starts.setdefault(cid, current_pos)
-            elif tag == "commentRangeEnd":
+                continue
+
+            if tag == "commentRangeEnd":
                 cid_attr = child.get(f"{{{NS['w']}}}id")
                 if cid_attr is None:
                     continue
@@ -316,21 +309,17 @@ class Paragraph:
                 start_pos = open_starts.pop(cid, current_pos)
                 if start_pos <= current_pos:
                     ranges.append((cid, start_pos, current_pos))
-            elif tag == "r":
-                # run 内文本长度（与 Paragraph.text 计算方式保持一致）
-                run_len = 0
-                for r_child in child:
-                    r_tag = etree.QName(r_child.tag).localname
-                    if r_tag == "t":
-                        if r_child.text:
-                            run_len += len(r_child.text)
-                    elif r_tag == "br":
-                        run_len += 1
-                    elif r_tag == "tab":
-                        run_len += 1
-                current_pos += run_len
+                continue
 
-        return ranges
+            if tag == "r":
+                current_pos += self._run_text_length(child)
+                continue
+
+            current_pos = self._walk_comment_ranges(
+                child, current_pos, open_starts, ranges
+            )
+
+        return current_pos
 
     @property
     def comments(self) -> tuple[Comment, ...]:

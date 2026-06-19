@@ -3,9 +3,11 @@
 from datetime import datetime, timezone
 from io import BytesIO
 
+from lxml import etree
 from docx import Document as PythonDocxDocument
 
 from docxnote import Comment, DocxDocument, Paragraph
+from docxnote.namespaces import NS
 
 
 def _first_paragraph_with_text(doc: DocxDocument) -> Paragraph:
@@ -16,6 +18,44 @@ def _first_paragraph_with_text(doc: DocxDocument) -> Paragraph:
 
 
 class TestCommentReading:
+    def test_partial_comment_inside_hyperlink_roundtrips_exact_range(self):
+        """超链接容器内的局部批注应能精确锚定并读回。"""
+        pd_doc = PythonDocxDocument()
+        paragraph = pd_doc.add_paragraph()
+        part = paragraph.part
+        rel_id = part.relate_to(
+            "https://example.com",
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+            is_external=True,
+        )
+        hyperlink = etree.Element(
+            f"{{{NS['w']}}}hyperlink", {f"{{{NS['r']}}}id": rel_id}
+        )
+        run = etree.SubElement(hyperlink, f"{{{NS['w']}}}r")
+        text = etree.SubElement(run, f"{{{NS['w']}}}t")
+        text.text = "ClickHere"
+        paragraph._p.append(hyperlink)
+
+        buffer = BytesIO()
+        pd_doc.save(buffer)
+        buffer.seek(0)
+
+        doc = DocxDocument.parse(buffer.getvalue())
+        para = _first_paragraph_with_text(doc)
+        assert para.text == "ClickHere"
+
+        created = para.comment("link", start=0, end=5, author="tester")
+        assert (created.start, created.end) == (0, 5)
+
+        out = doc.render()
+        doc2 = DocxDocument.parse(out, keep_comments=True)
+        para2 = _first_paragraph_with_text(doc2)
+
+        matched = [c for c in para2.comments if c.text == "link" and c.author == "tester"]
+        assert matched
+        assert (matched[0].start, matched[0].end) == (0, 5)
+        assert para2.text[matched[0].start : matched[0].end] == "Click"
+
     def test_partial_comment_inside_single_run_roundtrips_exact_range(self):
         """单个 run 中的局部批注应保留精确字符范围。"""
         pd_doc = PythonDocxDocument()

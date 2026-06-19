@@ -3,6 +3,7 @@
 import io
 import threading
 import zipfile
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
@@ -55,6 +56,8 @@ class DocxDocument:
         self._body = None
         self._comments: list[tuple[int, str, str, datetime]] = []
         self._comment_index: dict[int, tuple[str, str, datetime]] = {}
+        self._existing_comment_elements: dict[int, etree._Element] = {}
+        self._comments_root_template: etree._Element | None = None
         self._comment_id_counter = 0
         self._lock = threading.RLock()
 
@@ -121,6 +124,8 @@ class DocxDocument:
             max_id = -1
             self._comments.clear()
             self._comment_index.clear()
+            self._existing_comment_elements.clear()
+            self._comments_root_template = deepcopy(comments_tree)
 
             for comment in comments_tree:
                 comment_id_str = comment.get(f"{{{NS['w']}}}id")
@@ -141,6 +146,7 @@ class DocxDocument:
                 meta = (text, author, date_val)
                 self._comments.append((comment_id, *meta))
                 self._comment_index[comment_id] = meta
+                self._existing_comment_elements[comment_id] = deepcopy(comment)
 
             # 设置下一个批注 ID
             self._comment_id_counter = max_id + 1
@@ -238,12 +244,11 @@ class DocxDocument:
         output = io.BytesIO()
 
         with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as out_zip:
-            # 准备 rels 和 content types（如果有批注）
-            rels_data = None
-            content_types_data = None
-            if self._comments:
-                rels_data = self._prepare_rels()
-                content_types_data = self._prepare_content_types()
+            include_comments = bool(self._comments)
+            rels_data = self._prepare_rels(include_comments=include_comments)
+            content_types_data = self._prepare_content_types(
+                include_comments=include_comments
+            )
 
             # 复制所有原始文件
             for item in self._zip.namelist():
@@ -270,74 +275,92 @@ class DocxDocument:
             if self._comments:
                 comments_xml = self._build_comments_xml()
                 out_zip.writestr("word/comments.xml", comments_xml)
+
+            if rels_data is not None:
                 out_zip.writestr("word/_rels/document.xml.rels", rels_data)
+
+            if content_types_data is not None:
                 out_zip.writestr("[Content_Types].xml", content_types_data)
 
         return output.getvalue()
 
     def _build_comments_xml(self) -> bytes:
         """构建 comments.xml"""
-        root = etree.Element(f"{{{NS['w']}}}comments", nsmap=NS)
+        if self._comments_root_template is not None:
+            root = deepcopy(self._comments_root_template)
+            for child in list(root):
+                root.remove(child)
+        else:
+            root = etree.Element(f"{{{NS['w']}}}comments", nsmap=NS)
 
         for comment_id, text, author, date_val in self._comments:
-            comment = etree.SubElement(
-                root,
-                f"{{{NS['w']}}}comment",
-                attrib={
-                    f"{{{NS['w']}}}id": str(comment_id),
-                    f"{{{NS['w']}}}author": author,
-                    f"{{{NS['w']}}}date": _format_w_comment_date(date_val),
-                    f"{{{NS['w']}}}initials": author[0].upper() if author else "D",
-                },
-            )
+            existing = self._existing_comment_elements.get(comment_id)
+            if existing is not None:
+                root.append(deepcopy(existing))
+                continue
 
-            # 按换行拆分为多个段落，尽量保留原批注的多段结构
-            lines = text.split("\n")
-            if not lines:
-                lines = [""]
-
-            for line in lines:
-                p = etree.SubElement(comment, f"{{{NS['w']}}}p")
-                r = etree.SubElement(p, f"{{{NS['w']}}}r")
-
-                # 处理 tab：用 w:tab 表示
-                if "\t" in line:
-                    buf: list[str] = []
-                    for ch in line:
-                        if ch == "\t":
-                            if buf:
-                                t = etree.SubElement(r, f"{{{NS['w']}}}t")
-                                seg = "".join(buf)
-                                if seg[:1] == " " or seg[-1:] == " ":
-                                    t.set(
-                                        "{http://www.w3.org/XML/1998/namespace}space",
-                                        "preserve",
-                                    )
-                                t.text = seg
-                                buf.clear()
-                            etree.SubElement(r, f"{{{NS['w']}}}tab")
-                        else:
-                            buf.append(ch)
-                    if buf or line == "":
-                        t = etree.SubElement(r, f"{{{NS['w']}}}t")
-                        seg = "".join(buf)
-                        if seg[:1] == " " or seg[-1:] == " ":
-                            t.set(
-                                "{http://www.w3.org/XML/1998/namespace}space",
-                                "preserve",
-                            )
-                        t.text = seg
-                else:
-                    t = etree.SubElement(r, f"{{{NS['w']}}}t")
-                    if line[:1] == " " or line[-1:] == " ":
-                        t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
-                    t.text = line
+            root.append(self._build_new_comment_element(comment_id, text, author, date_val))
 
         return etree.tostring(
             root, xml_declaration=True, encoding="UTF-8", standalone=True
         )
 
-    def _prepare_rels(self) -> bytes:
+    def _build_new_comment_element(
+        self, comment_id: int, text: str, author: str, date_val: datetime
+    ) -> etree._Element:
+        comment = etree.Element(
+            f"{{{NS['w']}}}comment",
+            attrib={
+                f"{{{NS['w']}}}id": str(comment_id),
+                f"{{{NS['w']}}}author": author,
+                f"{{{NS['w']}}}date": _format_w_comment_date(date_val),
+                f"{{{NS['w']}}}initials": author[0].upper() if author else "D",
+            },
+        )
+
+        lines = text.split("\n")
+        if not lines:
+            lines = [""]
+
+        for line in lines:
+            p = etree.SubElement(comment, f"{{{NS['w']}}}p")
+            r = etree.SubElement(p, f"{{{NS['w']}}}r")
+
+            if "\t" in line:
+                buf: list[str] = []
+                for ch in line:
+                    if ch == "\t":
+                        if buf:
+                            t = etree.SubElement(r, f"{{{NS['w']}}}t")
+                            seg = "".join(buf)
+                            if seg[:1] == " " or seg[-1:] == " ":
+                                t.set(
+                                    "{http://www.w3.org/XML/1998/namespace}space",
+                                    "preserve",
+                                )
+                            t.text = seg
+                            buf.clear()
+                        etree.SubElement(r, f"{{{NS['w']}}}tab")
+                    else:
+                        buf.append(ch)
+                if buf or line == "":
+                    t = etree.SubElement(r, f"{{{NS['w']}}}t")
+                    seg = "".join(buf)
+                    if seg[:1] == " " or seg[-1:] == " ":
+                        t.set(
+                            "{http://www.w3.org/XML/1998/namespace}space",
+                            "preserve",
+                        )
+                    t.text = seg
+            else:
+                t = etree.SubElement(r, f"{{{NS['w']}}}t")
+                if line[:1] == " " or line[-1:] == " ":
+                    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+                t.text = line
+
+        return comment
+
+    def _prepare_rels(self, *, include_comments: bool) -> bytes | None:
         """准备 document.xml.rels 数据以包含 comments.xml 关系"""
         rels_path = "word/_rels/document.xml.rels"
 
@@ -345,25 +368,23 @@ class DocxDocument:
             rels_data = self._zip.read(rels_path)
             rels_xml = etree.fromstring(rels_data)
         except KeyError:
-            # 创建新的 rels
+            if not include_comments:
+                return None
             rels_xml = etree.Element(
                 "Relationships",
                 nsmap={
-                    "": "http://schemas.openxmlformats.org/package/2006/relationships"
+                    None: "http://schemas.openxmlformats.org/package/2006/relationships"
                 },
             )
 
-        # 检查是否已有 comments 关系
-        has_comments = False
-        for rel in rels_xml:
-            if (
-                rel.get("Type")
-                == "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
-            ):
-                has_comments = True
-                break
+        comment_type = (
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+        )
+        for rel in list(rels_xml):
+            if rel.get("Type") == comment_type:
+                rels_xml.remove(rel)
 
-        if not has_comments:
+        if include_comments:
             # 添加 comments 关系
             max_id = 0
             for rel in rels_xml:
@@ -380,14 +401,14 @@ class DocxDocument:
                 "Relationship",
                 attrib={
                     "Id": f"rId{max_id + 1}",
-                    "Type": "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments",
+                    "Type": comment_type,
                     "Target": "comments.xml",
                 },
             )
 
         return etree.tostring(rels_xml, xml_declaration=True, encoding="UTF-8")
 
-    def _prepare_content_types(self) -> bytes:
+    def _prepare_content_types(self, *, include_comments: bool) -> bytes:
         """准备 [Content_Types].xml 数据以包含 comments.xml"""
         ct_data = self._zip.read("[Content_Types].xml")
         ct_xml = etree.fromstring(ct_data)
@@ -397,14 +418,11 @@ class DocxDocument:
             None, "http://schemas.openxmlformats.org/package/2006/content-types"
         )
 
-        # 检查是否已有 comments.xml 的 Override
-        has_comments_override = False
-        for override in ct_xml:
+        for override in list(ct_xml):
             if override.get("PartName") == "/word/comments.xml":
-                has_comments_override = True
-                break
+                ct_xml.remove(override)
 
-        if not has_comments_override:
+        if include_comments:
             # 添加 comments.xml 的 Override
             override_elem = etree.Element(
                 f"{{{ns}}}Override",

@@ -219,3 +219,67 @@ def test_existing_multiline_comment_preserved_after_second_comment():
         }
         assert "0" in ids
         assert any(i != "0" for i in ids)
+
+
+def test_strip_existing_comments_removes_stale_package_references():
+    docx_bytes = _make_docx_with_existing_multiline_comment()
+
+    dn = DocxDocument.parse(docx_bytes, keep_comments=False)
+    out = dn.render()
+
+    with zipfile.ZipFile(BytesIO(out)) as z:
+        assert "word/comments.xml" not in z.namelist()
+
+        rels_tree = etree.fromstring(z.read("word/_rels/document.xml.rels"))
+        assert not any(
+            rel.get("Type")
+            == "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+            for rel in rels_tree
+        )
+
+        ct_tree = etree.fromstring(z.read("[Content_Types].xml"))
+        assert not any(
+            override.get("PartName") == "/word/comments.xml" for override in ct_tree
+        )
+
+
+def test_keep_comments_preserves_existing_comment_xml_metadata():
+    docx_bytes = _make_docx_with_existing_multiline_comment()
+
+    out = BytesIO()
+    with zipfile.ZipFile(BytesIO(docx_bytes), "r") as zin, zipfile.ZipFile(
+        out, "w", zipfile.ZIP_DEFLATED
+    ) as zout:
+        for name in zin.namelist():
+            if name != "word/comments.xml":
+                zout.writestr(name, zin.read(name))
+
+        comments_tree = etree.fromstring(zin.read("word/comments.xml"))
+        c0 = comments_tree.find("./w:comment[@w:id='0']", NS)
+        assert c0 is not None
+        c0.set(f"{{{NS['w']}}}initials", "ZZ")
+        c0.set("{http://schemas.microsoft.com/office/word/2012/wordml}done", "1")
+
+        first_run = c0.find("./w:p/w:r", NS)
+        assert first_run is not None
+        rpr = etree.Element(f"{{{NS['w']}}}rPr")
+        etree.SubElement(rpr, f"{{{NS['w']}}}b")
+        first_run.insert(0, rpr)
+
+        zout.writestr(
+            "word/comments.xml",
+            etree.tostring(
+                comments_tree, xml_declaration=True, encoding="UTF-8", standalone=True
+            ),
+        )
+
+    dn = DocxDocument.parse(out.getvalue(), keep_comments=True)
+    rendered = dn.render()
+
+    with zipfile.ZipFile(BytesIO(rendered)) as z:
+        comments_tree = etree.fromstring(z.read("word/comments.xml"))
+        c0 = comments_tree.find("./w:comment[@w:id='0']", NS)
+        assert c0 is not None
+        assert c0.get(f"{{{NS['w']}}}initials") == "ZZ"
+        assert c0.get("{http://schemas.microsoft.com/office/word/2012/wordml}done") == "1"
+        assert c0.find(".//w:rPr/w:b", NS) is not None
