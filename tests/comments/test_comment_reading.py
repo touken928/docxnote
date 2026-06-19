@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from io import BytesIO
+import zipfile
 
 from lxml import etree
 from docx import Document as PythonDocxDocument
@@ -18,6 +19,42 @@ def _first_paragraph_with_text(doc: DocxDocument) -> Paragraph:
 
 
 class TestCommentReading:
+    def test_partial_comment_preserves_non_text_run_content(self):
+        """局部批注拆分 run 时不应丢失非文本节点。"""
+        pd_doc = PythonDocxDocument()
+        paragraph = pd_doc.add_paragraph()
+        run = paragraph.add_run("ABCD")
+        run_el = run._r
+
+        sym = etree.Element(f"{{{NS['w']}}}sym")
+        sym.set(f"{{{NS['w']}}}font", "Wingdings")
+        sym.set(f"{{{NS['w']}}}char", "F04A")
+        run_el.append(sym)
+
+        buffer = BytesIO()
+        pd_doc.save(buffer)
+        buffer.seek(0)
+
+        doc = DocxDocument.parse(buffer.getvalue())
+        para = _first_paragraph_with_text(doc)
+        created = para.comment("inner", start=1, end=3, author="tester")
+        assert (created.start, created.end) == (1, 3)
+
+        out = doc.render()
+        with zipfile.ZipFile(BytesIO(out)) as z:
+            document_tree = etree.fromstring(z.read("word/document.xml"))
+            symbols = document_tree.findall(".//w:sym", NS)
+            assert len(symbols) == 1
+            assert symbols[0].get(f"{{{NS['w']}}}font") == "Wingdings"
+            assert symbols[0].get(f"{{{NS['w']}}}char") == "F04A"
+
+        doc2 = DocxDocument.parse(out, keep_comments=True)
+        para2 = _first_paragraph_with_text(doc2)
+        matched = [c for c in para2.comments if c.text == "inner" and c.author == "tester"]
+        assert matched
+        assert (matched[0].start, matched[0].end) == (1, 3)
+        assert para2.text == "ABCD"
+
     def test_partial_comment_inside_hyperlink_roundtrips_exact_range(self):
         """超链接容器内的局部批注应能精确锚定并读回。"""
         pd_doc = PythonDocxDocument()

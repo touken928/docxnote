@@ -222,52 +222,59 @@ class Paragraph:
         if split_offset <= 0 or split_offset >= run_len:
             return
 
-        before_run = self._slice_run(run, 0, split_offset)
-        after_run = self._slice_run(run, split_offset, run_len)
-        if before_run is None or after_run is None:
-            return
+        before_run = etree.Element(run.tag, attrib=dict(run.attrib), nsmap=run.nsmap)
+        after_run = etree.Element(run.tag, attrib=dict(run.attrib), nsmap=run.nsmap)
+        current_pos = 0
+
+        for child in run:
+            tag = etree.QName(child.tag).localname
+
+            if tag == "rPr":
+                before_run.append(deepcopy(child))
+                after_run.append(deepcopy(child))
+                continue
+
+            if tag == "t":
+                text = child.text or ""
+                next_pos = current_pos + len(text)
+
+                if split_offset > current_pos:
+                    before_text = text[: max(0, split_offset - current_pos)]
+                    if before_text:
+                        before_child = deepcopy(child)
+                        before_child.text = before_text
+                        before_run.append(before_child)
+
+                if split_offset < next_pos:
+                    after_text = text[max(0, split_offset - current_pos) :]
+                    if after_text:
+                        after_child = deepcopy(child)
+                        after_child.text = after_text
+                        after_run.append(after_child)
+
+                current_pos = next_pos
+                continue
+
+            if tag in {"br", "tab"}:
+                if current_pos < split_offset:
+                    before_run.append(deepcopy(child))
+                else:
+                    after_run.append(deepcopy(child))
+                current_pos += 1
+                continue
+
+            # Preserve non-text run content such as drawings, field markers,
+            # symbols, and references instead of silently dropping it.
+            if current_pos < split_offset:
+                before_run.append(deepcopy(child))
+            else:
+                after_run.append(deepcopy(child))
 
         children = list(parent)
         run_idx = children.index(run)
         parent.remove(run)
         parent.insert(run_idx, before_run)
         parent.insert(run_idx + 1, after_run)
-
-    def _slice_run(self, run, start: int, end: int):
-        """复制一个 run 的指定字符片段，保留 run 样式。"""
-        if start >= end:
-            return None
-
-        new_run = etree.Element(run.tag, attrib=dict(run.attrib), nsmap=run.nsmap)
-        copied_content = False
-        current_pos = 0
-
-        for child in run:
-            tag = etree.QName(child.tag).localname
-            if tag == "rPr":
-                new_run.append(deepcopy(child))
-                continue
-            if tag == "t":
-                text = child.text or ""
-                next_pos = current_pos + len(text)
-                slice_start = max(start, current_pos)
-                slice_end = min(end, next_pos)
-                if slice_start < slice_end:
-                    new_child = deepcopy(child)
-                    new_child.text = text[slice_start - current_pos : slice_end - current_pos]
-                    new_run.append(new_child)
-                    copied_content = True
-                current_pos = next_pos
-            elif tag in {"br", "tab"}:
-                next_pos = current_pos + 1
-                if start <= current_pos and next_pos <= end:
-                    new_run.append(deepcopy(child))
-                    copied_content = True
-                current_pos = next_pos
-
-        if not copied_content:
-            return None
-        return new_run
 
     def _iter_comment_ranges(self) -> List[Tuple[int, int, int]]:
         """按段落文本坐标返回本段落上的批注范围列表。
