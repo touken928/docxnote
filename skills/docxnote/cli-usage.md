@@ -109,8 +109,8 @@ runs and inserts `\n`/`\t`). Typical strategy:
 2. Compute `start = text.index(phrase)` and `end = start + len(phrase)`.
 3. Put them in the op.
 
-If you only need to comment the whole paragraph, omit `start`/`end` — they
-default to `0` and *end of paragraph*.
+If you only need to comment the whole paragraph, omit `start`/`end`.
+They default to `0` and the end of the paragraph.
 
 ---
 
@@ -135,7 +135,7 @@ Rule of thumb: if the user says "append", pass `--keep-comments` to
 - **Mixing `--path/--text` with `--spec`** is allowed; the single op is
   *appended* after spec entries.
 - **Non-UTF-8 spec files**: the CLI reads `--spec` as UTF-8.
-- **Shell quoting** with Chinese or emoji content: on Windows PowerShell,
+- **Shell quoting** with non-ASCII or emoji content: on Windows PowerShell,
   prefer `--spec` over long inline `--text` arguments.
 
 ---
