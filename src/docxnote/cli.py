@@ -18,11 +18,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import stat
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Sequence
 
 from . import Cell, Comment, DocxDocument, Paragraph, Table
+from .namespaces import NS
 
 
 # ---------------------------------------------------------------------------
@@ -178,8 +182,7 @@ def cmd_comments(args: argparse.Namespace) -> int:
 
 
 def cmd_annotate(args: argparse.Namespace) -> int:
-    doc = _read_doc(args.input, keep_comments=args.keep_comments)
-
+    _reject_same_file(args.input, args.output)
     ops = _collect_annotate_ops(args)
     if not ops:
         print(
@@ -187,13 +190,20 @@ def cmd_annotate(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
+    ops = [_validate_annotate_op(op) for op in ops]
+
+    doc = _read_doc(args.input, keep_comments=args.keep_comments)
+
+    targets = [_validate_annotate_target(doc, op) for op in ops]
 
     results: list[dict[str, Any]] = []
-    for op in ops:
-        comment = _apply_annotate_op(doc, op)
+    for op, target in zip(ops, targets):
+        comment = _apply_annotate_op(target, op)
         results.append(_comment_to_dict(comment))
 
-    Path(args.output).write_bytes(doc.render())
+    rendered = doc.render()
+    output = Path(args.output)
+    _write_atomic(output, rendered)
 
     if args.json:
         _dump_json({"output": str(args.output), "added": results})
@@ -202,6 +212,45 @@ def cmd_annotate(args: argparse.Namespace) -> int:
         for r in results:
             print(f"  + {r['path']}  {r['author']}  [{r['start']}:{r['end']}]")
     return 0
+
+
+def _write_atomic(output: Path, data: bytes) -> None:
+    existing_mode: int | None = None
+    try:
+        existing_mode = stat.S_IMODE(output.stat().st_mode)
+    except FileNotFoundError:
+        pass
+
+    fd: int | None = None
+    temporary: str | None = None
+    try:
+        for candidate in getattr(tempfile, "_get_candidate_names")():
+            path = output.parent / f".{output.name}.{candidate}.tmp"
+            try:
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+            except FileExistsError:
+                continue
+            temporary = os.fspath(path)
+            break
+        if fd is None or temporary is None:
+            raise OSError("could not create temporary output file")
+        if existing_mode is not None and os.name == "posix":
+            os.fchmod(fd, existing_mode)
+        with os.fdopen(fd, "wb") as stream:
+            fd = None
+            stream.write(data)
+        if existing_mode is not None and os.name != "posix":
+            os.chmod(temporary, existing_mode)
+        os.replace(temporary, output)
+        temporary = None
+    finally:
+        if fd is not None:
+            os.close(fd)
+        if temporary is not None:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
 
 
 def _collect_annotate_ops(args: argparse.Namespace) -> list[dict[str, Any]]:
@@ -232,26 +281,67 @@ def _collect_annotate_ops(args: argparse.Namespace) -> list[dict[str, Any]]:
     return ops
 
 
-def _apply_annotate_op(doc: DocxDocument, op: dict[str, Any]) -> Comment:
+def _reject_same_file(input_path: Path, output_path: Path) -> None:
+    input_abs = os.path.abspath(os.fspath(input_path))
+    output_abs = os.path.abspath(os.fspath(output_path))
+    if os.path.normcase(input_abs) == os.path.normcase(output_abs):
+        raise ValueError("input and output must be different files")
+    if os.path.realpath(input_abs) == os.path.realpath(output_abs):
+        raise ValueError("input and output must be different files")
+    try:
+        if os.path.samefile(input_path, output_path):
+            raise ValueError("input and output must be different files")
+    except FileNotFoundError:
+        pass
+
+
+_ANNOTATE_KEYS = frozenset({"path", "text", "start", "end", "author"})
+
+
+def _validate_annotate_op(op: dict[str, Any]) -> dict[str, Any]:
+    unknown = set(op) - _ANNOTATE_KEYS
+    if unknown:
+        raise ValueError(f"unknown annotation field(s): {', '.join(sorted(unknown))}")
     path = op.get("path")
     text = op.get("text")
     if not isinstance(path, str) or not path:
-        raise ValueError(f"op missing 'path': {op!r}")
+        raise ValueError(f"op requires a nonempty string 'path': {op!r}")
     if not isinstance(text, str):
-        raise ValueError(f"op missing 'text': {op!r}")
+        raise ValueError(f"op requires a string 'text': {op!r}")
 
+    start = op.get("start", 0)
+    if not isinstance(start, int) or isinstance(start, bool):
+        raise ValueError(f"op 'start' must be an integer: {op!r}")
+    end = op.get("end")
+    if end is not None and (not isinstance(end, int) or isinstance(end, bool)):
+        raise ValueError(f"op 'end' must be an integer or null: {op!r}")
+    author = op.get("author", "docxnote")
+    if not isinstance(author, str):
+        raise ValueError(f"op 'author' must be a string: {op!r}")
+    return {"path": path, "text": text, "start": start, "end": end, "author": author}
+
+
+def _validate_annotate_target(doc: DocxDocument, op: dict[str, Any]) -> Paragraph:
+    path = op["path"]
     target = doc.resolve(path)
     if not isinstance(target, Paragraph):
         raise ValueError(
             f"path does not target a paragraph: {path!r} -> {type(target).__name__}"
         )
+    if not target._element.findall(".//w:r", NS):
+        raise ValueError(
+            f"Cannot add comment to paragraph '{path}': paragraph has no text runs"
+        )
+    return target
 
-    start = int(op.get("start") or 0)
-    end_raw = op.get("end")
-    end = int(end_raw) if end_raw is not None else None
-    author = str(op.get("author") or "docxnote")
 
-    return target.comment(text, start=start, end=end, author=author)
+def _apply_annotate_op(target: Paragraph, op: dict[str, Any]) -> Comment:
+    return target.comment(
+        op["text"],
+        start=op["start"],
+        end=op["end"],
+        author=op["author"],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -366,6 +456,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"error: file not found: {e.filename or e}", file=sys.stderr)
         return 2
     except (LookupError, ValueError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
+    except OSError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 

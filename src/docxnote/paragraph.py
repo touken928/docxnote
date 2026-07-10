@@ -19,7 +19,6 @@ class Paragraph:
         self._document = document
         self._path = path
         self._text_cache = None
-        self._comments_cache: List[Comment] | None = None
 
     @property
     def path(self) -> str:
@@ -72,10 +71,9 @@ class Paragraph:
         """
         with self._document._lock:
             para_len = len(self.text)
-            if end is None:
-                end = para_len
-            safe_start = max(0, min(start, para_len))
-            safe_end = max(safe_start, min(end, para_len))
+            safe_start, safe_end, _step = slice(start, end).indices(para_len)
+            if safe_end < safe_start:
+                safe_end = safe_start
 
             runs = list(self._element.findall(".//w:r", NS))
             if not runs:
@@ -86,9 +84,6 @@ class Paragraph:
 
             comment_id = self._document.add_comment(text, author, date=date)
             self._insert_comment_markers(comment_id, safe_start, safe_end)
-
-            # 新增批注后清空本段落的批注缓存
-            self._comments_cache = None
 
             meta = self._document._get_comment_meta(comment_id)
             if meta is None:
@@ -135,7 +130,9 @@ class Paragraph:
             attrib={f"{{{NS['w']}}}id": str(comment_id)},
         )
 
-        start_parent, start_insert_pos = self._boundary_insert_location(self._element, start)
+        start_parent, start_insert_pos = self._boundary_insert_location(
+            self._element, start
+        )
         start_parent.insert(start_insert_pos, comment_start)
 
         end_parent, end_insert_pos = self._boundary_insert_location(self._element, end)
@@ -332,9 +329,6 @@ class Paragraph:
     def comments(self) -> tuple[Comment, ...]:
         """返回附着在本段落上的所有批注（按文档顺序）。"""
         with self._document._lock:
-            if self._comments_cache is not None:
-                return tuple(self._comments_cache)
-
             ranges = self._iter_comment_ranges()
             result: list[Comment] = []
 
@@ -361,5 +355,4 @@ class Paragraph:
                     )
                 )
 
-            self._comments_cache = result
             return tuple(result)

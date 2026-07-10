@@ -13,7 +13,7 @@ from .paragraph import Paragraph
 from .table import Table, Cell
 from .namespaces import NS
 from .comments import Comment
-from .paths import build_segment, parse_path
+from .paths import build_segment, comment_path, parse_path
 
 
 def _parse_w_comment_date(value: str | None) -> datetime:
@@ -207,7 +207,9 @@ class DocxDocument:
         每个段落对象都带有可寻址路径 ``paragraph.path``。
         """
         with self._lock:
-            yield from _walk_paragraphs(self.blocks())
+            paragraphs = tuple(_walk_paragraphs(self.blocks()))
+
+        yield from paragraphs
 
     def add_comment(
         self,
@@ -299,7 +301,9 @@ class DocxDocument:
                 root.append(deepcopy(existing))
                 continue
 
-            root.append(self._build_new_comment_element(comment_id, text, author, date_val))
+            root.append(
+                self._build_new_comment_element(comment_id, text, author, date_val)
+            )
 
         return etree.tostring(
             root, xml_declaration=True, encoding="UTF-8", standalone=True
@@ -377,9 +381,7 @@ class DocxDocument:
                 },
             )
 
-        comment_type = (
-            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
-        )
+        comment_type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
         for rel in list(rels_xml):
             if rel.get("Type") == comment_type:
                 rels_xml.remove(rel)
@@ -471,8 +473,9 @@ class DocxDocument:
                     "comment path must target a paragraph, got "
                     f"{type(current).__name__}"
                 )
+            canonical_path = comment_path(current.path, comment_id)
             for c in current.comments:
-                if c.path == path:
+                if c.path == canonical_path:
                     return c
             raise LookupError(
                 f"comment {comment_id} not found on paragraph {current.path!r}"

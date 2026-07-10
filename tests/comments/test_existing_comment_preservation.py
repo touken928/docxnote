@@ -281,5 +281,7 @@ def test_keep_comments_preserves_existing_comment_xml_metadata():
         c0 = comments_tree.find("./w:comment[@w:id='0']", NS)
         assert c0 is not None
         assert c0.get(f"{{{NS['w']}}}initials") == "ZZ"
-        assert c0.get("{http://schemas.microsoft.com/office/word/2012/wordml}done") == "1"
+        assert (
+            c0.get("{http://schemas.microsoft.com/office/word/2012/wordml}done") == "1"
+        )
         assert c0.find(".//w:rPr/w:b", NS) is not None

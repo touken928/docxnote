@@ -136,6 +136,12 @@ docxnote annotate in.docx out.docx \
   默认**剥离**（与 `DocxDocument.parse` 默认一致）。
 - 使用 `--keep-comments` 时，输出文件会继续保留原有批注以及它们已有的批注 XML 元数据。
 - 任一操作的 `path` 没解析到段落，则以状态码 `2` 退出，**不写任何文件**。
+- 操作对象只能包含 `path`、`text`、`start`、`end`、`author`。`path` 必须是非空字符串；
+  `text` 与 `author` 必须是字符串（允许空字符串）；`start` 必须是非布尔整数；
+  `end` 必须是非布尔整数或 JSON `null`。省略 `start`、`end`、`author` 时使用上述默认值。
+- `INPUT` 与 `OUTPUT` 不能指向同一个文件，包括相对路径、符号链接和硬链接别名。
+  文档先写入同目录临时文件，再原子替换到 `OUTPUT`；校验或预期的输入/输出失败
+  不会改动已有输出文件。
 - `--json` 时 stdout 为 `{"output": "<路径>", "added": [<批注对象>, ...]}`。
 
 ---

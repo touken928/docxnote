@@ -73,6 +73,11 @@ with open("output.docx", "wb") as f:
     f.write(output)
 ```
 
+Table traversal accounts for Word tables whose rows omit leading or trailing grid
+columns. Comment ranges use Python slice semantics on `paragraph.text`, including
+negative and oversized endpoints; a reversed range is an empty anchor at its
+normalized start. See the [API reference](docs/API.md) for details.
+
 ---
 
 ## CLI
@@ -91,6 +96,9 @@ docxnote annotate input.docx output.docx --spec ops.json --keep-comments
 ```
 
 Full reference: [docs/CLI.md](docs/CLI.md) · [docs/CLI_zh.md](docs/CLI_zh.md).
+
+`annotate` rejects input/output aliases, including symlinks and hard links, and
+writes through a temporary sibling file before atomically replacing `OUTPUT`.
 
 `start` / `end` always refer to character offsets inside `paragraph.text`
 using Python slice semantics (`[start, end)`). docxnote handles run splitting,

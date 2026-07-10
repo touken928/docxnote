@@ -136,6 +136,9 @@ for c in paragraph.comments:
   Python slice semantics: `[start, end)`.
 - `c.text` is the comment body.
 - `c.date` comes from the comment's `w:date` value.
+- `paragraph.comments` is read from current document state on each access, so a
+  previously obtained paragraph wrapper sees comments added through another
+  wrapper.
 
 ### Add a comment
 
@@ -150,6 +153,9 @@ new = paragraph.comment(
 ```
 
 - `end=None` means "to the end of the paragraph".
+- Negative and oversized endpoints are normalized like a Python slice. If the
+  normalized end is before the normalized start, the result is a zero-length
+  anchor at the normalized start.
 - Returned `Comment.path` can be stored and later resolved with
   `doc.resolve(...)`.
 - Offsets are character-based, not byte-based.
@@ -225,6 +231,10 @@ for c in doc.comments():
 
 This walks the whole document, including paragraphs inside tables and nested
 tables, in document order.
+
+`doc.iter_paragraphs()` snapshots its paragraph wrappers while holding the
+document lock, then yields them after releasing the lock. A paused iterator
+does not block other document operations.
 
 ## Stable paths
 

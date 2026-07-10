@@ -116,6 +116,16 @@ class TestResolveByPath:
         assert got.text == "hello"
         assert got.author == "tester"
 
+    def test_resolve_comment_normalizes_path_syntax(self, simple_doc):
+        doc = DocxDocument.parse(simple_doc)
+        para = next(b for b in doc.blocks() if isinstance(b, Paragraph) and b.text)
+        added = para.comment("hello", start=0, end=1)
+
+        got = doc.resolve(f"  {para.path} / #{added.path.rsplit('#', 1)[1]}  ")
+
+        assert isinstance(got, Comment)
+        assert got.path == added.path
+
     def test_resolve_invalid_path(self, simple_doc):
         doc = DocxDocument.parse(simple_doc)
         with pytest.raises(ValueError):

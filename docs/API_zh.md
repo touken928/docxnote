@@ -72,7 +72,7 @@ cell = doc.resolve("t:0/r:1/c:2")
 comment = doc.resolve("t:0/r:1/c:2/p:0#3")
 ```
 
-`doc.resolve(path)` 可以返回 `Paragraph` / `Table` / `Cell` / `Comment`。`doc.iter_paragraphs()` 会按文档顺序遍历所有段落（含表格与嵌套表格，合并单元格不会重复），每个段落都带有自己的 `path`。
+`doc.resolve(path)` 可以返回 `Paragraph` / `Table` / `Cell` / `Comment`。批注路径会按规范形式解析，因此路径段之间的空白或多余分隔符不会影响定位。`doc.iter_paragraphs()` 会按文档顺序遍历所有段落（含表格与嵌套表格，合并单元格不会重复）；它会先在文档锁内快照段落包装器，再在释放锁后迭代，每个段落都带有自己的 `path`。
 
 ---
 
@@ -125,7 +125,7 @@ paragraph.comment(
 )
 ```
 
-为段落文本范围添加批注。范围始终基于 `paragraph.text` 的字符区间，并遵循 Python 切片语义 `[start, end)`。docxnote 会自动处理 Run 拆分与锚点放置，包括超链接等嵌套段落内容中的精确锚点。写入 `comments.xml` 的 `w:date` 为 UTC（`…Z`）。若传入不带时区的 `datetime`，按 UTC 解释。
+为段落文本范围添加批注。范围始终基于 `paragraph.text` 的字符区间，并遵循 Python 切片语义 `[start, end)`，包括负数和超出范围的端点；`end=None` 表示段落末尾。规范化后如果 end 早于 start，则变为锚定在规范化 start 的零长度范围。docxnote 会自动处理 Run 拆分与锚点放置，包括超链接等嵌套段落内容中的精确锚点。写入 `comments.xml` 的 `w:date` 为 UTC（`…Z`）。若传入不带时区的 `datetime`，按 UTC 解释。
 
 `paragraph.comment(...)` 会返回新建的 `Comment` 对象，它的 `path` 可以直接回传给 `doc.resolve(...)`。
 
@@ -156,7 +156,7 @@ for c in comments:
     ...
 ```
 
-`doc.comments()` 会遍历整个文档（包含表格及嵌套表格中的段落），按文档顺序返回所有批注。其行为受 `keep_comments` 影响：
+`doc.comments()` 会遍历整个文档（包含表格及嵌套表格中的段落），按文档顺序返回所有批注。段落包装器每次读取 `comments` 都反映当前 XML 状态，因此旧包装器也能看到通过其他包装器新增的批注。其行为受 `keep_comments` 影响：
 
 - `keep_comments=False`（默认）：仅暴露当前会话新增的批注，不暴露原始 DOCX 中旧批注。
 - `keep_comments=True`：既保留又暴露原有批注，并允许在其基础上继续添加新批注；渲染时会继续保留这些已有批注。
@@ -184,6 +184,13 @@ cell = table[row, col]
 ```
 
 返回 `Cell` 对象。支持访问所有坐标，包括合并单元格覆盖的区域。
+
+表格使用 `tblGrid` 定义的逻辑网格。行通过 `gridBefore` 或 `gridAfter`
+省略的首尾坐标仍然可以访问，并返回合成的空 `Cell` 对象。合成单元格的
+`blocks()` 返回 `()`，`bounds()` 返回一个单元格的左闭右开范围
+`(row, col, row + 1, col + 1)`，`path` 使用正常的逻辑坐标路径（例如
+`t:0/r:0/c:0`）。该路径可以传给 `doc.resolve()`，并解析到同一逻辑坐标的
+合成单元格。
 
 ---
 

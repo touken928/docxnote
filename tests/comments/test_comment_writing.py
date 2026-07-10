@@ -187,6 +187,14 @@ class TestComments:
         output = doc.render()
         assert output is not None
 
+    def test_reversed_range_is_zero_length_at_normalized_start(self, simple_doc):
+        doc = DocxDocument.parse(simple_doc)
+        para = next(b for b in doc.blocks() if isinstance(b, Paragraph) and b.text)
+
+        comment = para.comment("reversed", start=-2, end=-5, author="tester")
+
+        assert (comment.start, comment.end) == (len(para.text) - 2, len(para.text) - 2)
+
     def test_render_without_comments(self, simple_doc):
         """测试不添加批注的渲染"""
         doc = DocxDocument.parse(simple_doc)

@@ -70,7 +70,7 @@ cell = doc.resolve("t:0/r:1/c:2")
 comment = doc.resolve("t:0/r:1/c:2/p:0#3")
 ```
 
-`doc.resolve(path)` returns a `Paragraph` / `Table` / `Cell` / `Comment`. Use `doc.iter_paragraphs()` to walk every paragraph (including inside tables and nested tables, de-duplicating merged cells) — each yielded paragraph carries its own `path`.
+`doc.resolve(path)` returns a `Paragraph` / `Table` / `Cell` / `Comment`. Comment paths are resolved canonically, so harmless whitespace or separator differences are accepted. Use `doc.iter_paragraphs()` to walk every paragraph (including inside tables and nested tables, de-duplicating merged cells) — its paragraph wrappers are snapshotted under the document lock before iteration begins, and each yielded paragraph carries its own `path`.
 
 ---
 
@@ -123,7 +123,7 @@ paragraph.comment(
 )
 ```
 
-Adds a comment spanning the given character range in the paragraph. The range is always interpreted against `paragraph.text` using Python slice semantics (`[start, end)`). docxnote splits runs and places anchors automatically, including inside nested paragraph content such as hyperlinks. The `w:date` value in `comments.xml` is stored in UTC (`…Z`). A naive `datetime` (no `tzinfo`) is treated as UTC.
+Adds a comment spanning the given character range in the paragraph. The range is always interpreted against `paragraph.text` using Python slice semantics (`[start, end)`), including negative and oversized endpoints. `end=None` means the paragraph end; if the normalized end precedes the normalized start, the range becomes zero-length at the normalized start. docxnote splits runs and places anchors automatically, including inside nested paragraph content such as hyperlinks. The `w:date` value in `comments.xml` is stored in UTC (`…Z`). A naive `datetime` (no `tzinfo`) is treated as UTC.
 
 `paragraph.comment(...)` returns the newly created `Comment`, whose `path` can be used later with `doc.resolve(...)`.
 
@@ -149,7 +149,7 @@ for c in comments:
     ...
 ```
 
-This walks all paragraphs in the document (including inside tables and nested tables) and returns all comments in document order. Respecting `keep_comments`: with `keep_comments=False` only comments added in the current session are visible; with `keep_comments=True` existing comments from the DOCX are also exposed and preserved on render.
+This walks all paragraphs in the document (including inside tables and nested tables) and returns all comments in document order. Each paragraph wrapper computes its current comments when accessed, so an older wrapper observes comments added through another wrapper. Respecting `keep_comments`: with `keep_comments=False` only comments added in the current session are visible; with `keep_comments=True` existing comments from the DOCX are also exposed and preserved on render.
 
 ---
 
@@ -174,6 +174,14 @@ cell = table[row, col]
 ```
 
 Returns a `Cell`. All coordinates are addressable, including positions covered by merged cells.
+
+The table uses the logical grid defined by `tblGrid`. When a row omits leading
+or trailing grid coordinates with `gridBefore` or `gridAfter`, those omitted
+coordinates are still addressable and return synthetic empty `Cell` objects.
+Their `blocks()` result is `()`, their `bounds()` is the one-cell half-open
+range `(row, col, row + 1, col + 1)`, and their `path` is the normal logical
+coordinate path (for example `t:0/r:0/c:0`). That path can be passed to
+`doc.resolve()` and resolves to the same synthetic cell coordinate.
 
 ---
 

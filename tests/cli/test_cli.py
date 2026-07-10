@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import os
+import stat
 from pathlib import Path
 
 import pytest
 
+import docxnote.cli as cli_module
 from docxnote import DocxDocument
 from docxnote.cli import main
 
@@ -183,6 +186,197 @@ class TestAnnotateCommand:
             ]
         )
         assert rc == 2
+
+    @pytest.mark.parametrize(
+        "bad_op",
+        [
+            {"path": "p:0", "text": "x", "start": True},
+            {"path": "p:0", "text": "x", "start": 1.5},
+            {"path": "p:0", "text": "x", "end": []},
+            {"path": "p:0", "text": "x", "extra": 1},
+            {"path": "", "text": "x"},
+            {"path": "p:0", "text": 1},
+            {"path": "p:0", "text": "x", "author": False},
+        ],
+    )
+    def test_spec_rejects_invalid_schema(self, capsys, tmp_path, simple_doc, bad_op):
+        infile = _write(tmp_path, "in.docx", simple_doc)
+        outfile = _write(tmp_path, "out.docx", b"prior output")
+        spec = tmp_path / "ops.json"
+        spec.write_text(json.dumps([bad_op]), encoding="utf-8")
+
+        assert main(["annotate", str(infile), str(outfile), "--spec", str(spec)]) == 2
+        assert outfile.read_bytes() == b"prior output"
+        assert "error" in capsys.readouterr().err.lower()
+
+    def test_later_batch_failure_preserves_existing_output(self, tmp_path, simple_doc):
+        infile = _write(tmp_path, "in.docx", simple_doc)
+        outfile = _write(tmp_path, "out.docx", b"prior output")
+        spec = tmp_path / "ops.json"
+        spec.write_text(
+            json.dumps(
+                [
+                    {"path": "p:0", "text": "first"},
+                    {"path": "p:999", "text": "later"},
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        assert main(["annotate", str(infile), str(outfile), "--spec", str(spec)]) == 2
+        assert outfile.read_bytes() == b"prior output"
+
+    def test_batch_target_validation_precedes_apply(
+        self, monkeypatch, tmp_path, simple_doc
+    ):
+        infile = _write(tmp_path, "in.docx", simple_doc)
+        outfile = tmp_path / "out.docx"
+        spec = tmp_path / "ops.json"
+        spec.write_text(
+            json.dumps(
+                [
+                    {"path": "p:0", "text": "first"},
+                    {"path": "p:999", "text": "later"},
+                ]
+            ),
+            encoding="utf-8",
+        )
+        applied = []
+        monkeypatch.setattr(
+            cli_module,
+            "_apply_annotate_op",
+            lambda target, op: applied.append(op),
+        )
+
+        assert main(["annotate", str(infile), str(outfile), "--spec", str(spec)]) == 2
+        assert applied == []
+
+    @pytest.mark.parametrize(
+        "alias_kind", ["direct", "relative", "symlink", "hardlink"]
+    )
+    def test_input_output_aliases_are_rejected(
+        self, capsys, monkeypatch, tmp_path, simple_doc, alias_kind
+    ):
+        infile = _write(tmp_path, "in.docx", simple_doc)
+        input_bytes = infile.read_bytes()
+        if alias_kind == "direct":
+            input_name = output_name = str(infile)
+        elif alias_kind == "relative":
+            monkeypatch.chdir(tmp_path)
+            input_name, output_name = "in.docx", "./sub/../in.docx"
+            (tmp_path / "sub").mkdir()
+        elif alias_kind == "symlink":
+            output = tmp_path / "out.docx"
+            output.symlink_to(infile)
+            input_name, output_name = str(infile), str(output)
+        else:
+            output = tmp_path / "out.docx"
+            os.link(infile, output)
+            input_name, output_name = str(infile), str(output)
+
+        assert (
+            main(["annotate", input_name, output_name, "--path", "p:0", "--text", "x"])
+            == 2
+        )
+        assert "different files" in capsys.readouterr().err
+        assert infile.read_bytes() == input_bytes
+
+    def test_spec_explicit_null_end_empty_author_and_omitted_defaults(
+        self, capsys, tmp_path, simple_doc
+    ):
+        infile = _write(tmp_path, "in.docx", simple_doc)
+        input_bytes = infile.read_bytes()
+        outfile = tmp_path / "out.docx"
+        spec = tmp_path / "ops.json"
+        spec.write_text(
+            json.dumps(
+                [
+                    {"path": "p:0", "text": "null", "end": None},
+                    {"path": "p:1", "text": "empty", "author": ""},
+                    {"path": "p:0", "text": "defaults"},
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        assert (
+            main(["annotate", str(infile), str(outfile), "--spec", str(spec), "--json"])
+            == 0
+        )
+        added = json.loads(capsys.readouterr().out)["added"]
+        assert added[0]["end"] == len("测试文档")
+        assert added[0]["author"] == "docxnote"
+        assert added[1]["author"] == ""
+        assert added[2]["start"] == 0
+        assert added[2]["author"] == "docxnote"
+        assert infile.read_bytes() == input_bytes
+
+    @pytest.mark.skipif(os.name != "posix", reason="permission bits are POSIX-specific")
+    def test_atomic_output_modes(self, tmp_path, simple_doc):
+        infile = _write(tmp_path, "in.docx", simple_doc)
+        existing = _write(tmp_path, "existing.docx", b"prior output")
+        existing.chmod(0o640)
+        assert (
+            main(
+                ["annotate", str(infile), str(existing), "--path", "p:0", "--text", "x"]
+            )
+            == 0
+        )
+        assert stat.S_IMODE(existing.stat().st_mode) == 0o640
+
+        output = tmp_path / "new.docx"
+        old_umask = os.umask(0o027)
+        try:
+            assert (
+                main(
+                    [
+                        "annotate",
+                        str(infile),
+                        str(output),
+                        "--path",
+                        "p:0",
+                        "--text",
+                        "x",
+                    ]
+                )
+                == 0
+            )
+        finally:
+            os.umask(old_umask)
+        assert stat.S_IMODE(output.stat().st_mode) == 0o640
+
+    def test_windows_atomic_mode_path_does_not_use_fchmod(
+        self, monkeypatch, tmp_path, simple_doc
+    ):
+        outfile = _write(tmp_path, "out.docx", b"prior output")
+        outfile.chmod(0o640)
+        monkeypatch.setattr(cli_module.os, "name", "nt")
+
+        def fail_fchmod(*args):
+            raise AssertionError("Windows must not call os.fchmod")
+
+        monkeypatch.setattr(cli_module.os, "fchmod", fail_fchmod)
+        cli_module._write_atomic(outfile, simple_doc)
+        assert outfile.read_bytes() == simple_doc
+
+    def test_output_replace_failure_cleans_temp_and_preserves_output(
+        self, monkeypatch, tmp_path, simple_doc
+    ):
+        infile = _write(tmp_path, "in.docx", simple_doc)
+        outfile = _write(tmp_path, "out.docx", b"prior output")
+
+        def fail_replace(source, destination):
+            raise OSError("replace failed")
+
+        monkeypatch.setattr(cli_module.os, "replace", fail_replace)
+        assert (
+            main(
+                ["annotate", str(infile), str(outfile), "--path", "p:0", "--text", "x"]
+            )
+            == 2
+        )
+        assert outfile.read_bytes() == b"prior output"
+        assert list(tmp_path.glob(f".{outfile.name}.*.tmp")) == []
 
 
 class TestCommentsCommand:

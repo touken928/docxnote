@@ -116,7 +116,8 @@ They default to `0` and the end of the paragraph.
 
 ## Preserving existing comments
 
-- `list` / `show` / `comments` default to **`--keep-comments`** (they're reads).
+- `show` / `comments` default to **`--keep-comments`**; `list` defaults to
+  **`--no-keep-comments`** because it only needs paragraph text.
 - `annotate` defaults to **`--no-keep-comments`** (the library default). Add
   `--keep-comments` to stack new comments on top of existing ones.
 
@@ -134,6 +135,13 @@ Rule of thumb: if the user says "append", pass `--keep-comments` to
   successful run.
 - **Mixing `--path/--text` with `--spec`** is allowed; the single op is
   *appended* after spec entries.
+- Spec operations accept only `path`, `text`, `start`, `end`, and `author`.
+  `path` must be nonempty, `text` and `author` are strings (including empty
+  strings), `start` and `end` are integers (not booleans), and `end` may be
+  `null`. Omitted `start`, `end`, and `author` use their defaults.
+- `INPUT` and `OUTPUT` must refer to different files, including through
+  relative paths, symlinks, or hard links. Annotation is atomic: an invalid
+  operation or write failure leaves an existing output unchanged.
 - **Non-UTF-8 spec files**: the CLI reads `--spec` as UTF-8.
 - **Shell quoting** with non-ASCII or emoji content: on Windows PowerShell,
   prefer `--spec` over long inline `--text` arguments.

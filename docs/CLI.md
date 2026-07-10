@@ -151,6 +151,15 @@ may be combined with `--spec` and is appended last.
   their existing comment XML metadata is preserved.
 - If any op's `path` does not resolve to a `Paragraph`, the command exits
   with status `2` and **no file is written**.
+- Operation objects may contain only `path`, `text`, `start`, `end`, and
+  `author`. `path` must be a nonempty string; `text` and `author` must be
+  strings, including empty strings; `start` must be an integer other than a
+  boolean; and `end` must be an integer other than a boolean or JSON `null`.
+  Omitted `start`, `end`, and `author` retain the defaults shown above.
+- `INPUT` and `OUTPUT` must not identify the same filesystem file, including
+  through relative paths, symlinks, or hard links. The document is rendered to
+  a temporary sibling and atomically replaced into `OUTPUT`; validation and
+  expected input/output failures leave an existing output unchanged.
 - With `--json`, stdout is `{"output": "<path>", "added": [<comment dict>, ...]}`.
 
 ---

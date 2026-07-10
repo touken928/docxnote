@@ -76,6 +76,10 @@ with open("output.docx", "wb") as f:
     f.write(output)
 ```
 
+表格遍历会正确处理 Word 行中省略的首尾网格列。批注范围基于
+`paragraph.text` 遵循 Python 切片语义，包括负数和超出范围的端点；规范化后
+反向范围会成为锚定在规范化起点的空范围。详见 [API 参考](API_zh.md)。
+
 ---
 
 ## 命令行
@@ -92,6 +96,9 @@ docxnote annotate input.docx output.docx --spec ops.json --keep-comments
 ```
 
 完整说明：[CLI_zh.md](CLI_zh.md) · [CLI.md](CLI.md)。
+
+`annotate` 会拒绝包括符号链接和硬链接在内的输入/输出文件别名，并先写入同目录
+临时文件，再原子替换 `OUTPUT`。详见 [CLI 参考](CLI_zh.md)。
 
 `start` / `end` 始终基于 `paragraph.text` 的字符偏移，遵循 Python 切片语义
 `[start, end)`。docxnote 会自动处理 Run 拆分，包括超链接等嵌套段落内容中的精确锚点。

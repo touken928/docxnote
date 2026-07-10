@@ -30,26 +30,62 @@ class Table:
             self._grid = []
             return
 
+        # The tblGrid defines logical coordinates, while gridBefore/gridAfter
+        # omit coordinates from individual rows.
+        tbl_grid = self._element.find("./w:tblGrid", NS)
+        grid_width = (
+            len(tbl_grid.findall("./w:gridCol", NS)) if tbl_grid is not None else None
+        )
+        row_specs: list[tuple[int, int, int]] = []
+        fallback_width = 0
+        for row in rows:
+            row_pr = row.find("./w:trPr", NS)
+            before = 0
+            after = 0
+            if row_pr is not None:
+                grid_before = row_pr.find("./w:gridBefore", NS)
+                grid_after = row_pr.find("./w:gridAfter", NS)
+                if grid_before is not None and grid_before.get(f"{{{NS['w']}}}val"):
+                    before = int(grid_before.get(f"{{{NS['w']}}}val"))
+                if grid_after is not None and grid_after.get(f"{{{NS['w']}}}val"):
+                    after = int(grid_after.get(f"{{{NS['w']}}}val"))
+
+            extent = before
+            for tc in row.findall("./w:tc", NS):
+                colspan = 1
+                tc_pr = tc.find("./w:tcPr", NS)
+                if tc_pr is not None:
+                    gridspan = tc_pr.find("./w:gridSpan", NS)
+                    if gridspan is not None and gridspan.get(f"{{{NS['w']}}}val"):
+                        colspan = int(gridspan.get(f"{{{NS['w']}}}val"))
+                extent += colspan
+            row_specs.append((before, after, extent))
+            fallback_width = max(fallback_width, extent + after)
+
+        max_cols = grid_width if grid_width is not None else fallback_width
+
         # 构建一个“展开到坐标”的网格：同一合并区域的所有坐标都指向起始 Cell
         self._grid = []
         row_maps: list[dict[int, Cell]] = []
         active_vmerge: dict[
             int, Cell
         ] = {}  # col -> origin cell (for current/next rows)
-        max_cols = 0
-
         for r_idx, row in enumerate(rows):
             # 只查找直接子单元格
             tcs = row.findall("./w:tc", NS)
 
+            before, after, _ = row_specs[r_idx]
             row_map: dict[int, Cell] = {}
-            col_idx = 0
+            col_idx = before
+            row_end = max_cols - after
+            # A merge cannot continue through coordinates omitted by this row.
+            active_vmerge = {
+                c: origin
+                for c, origin in active_vmerge.items()
+                if before <= c < row_end
+            }
 
             for tc in tcs:
-                # 跳过被上方 vMerge 占用的列位置
-                while col_idx in row_map:
-                    col_idx += 1
-
                 colspan = 1
                 vmerge_val: str | None = None
 
@@ -70,6 +106,11 @@ class Table:
                 )
                 if vmerge_val is not None:
                     is_vmerge_continue = vmerge_val != "restart"
+
+                # Continuation cells occupy the active merge lane. Only lanes
+                # already emitted in this row need to be skipped.
+                while col_idx in row_map:
+                    col_idx += 1
 
                 if is_vmerge_continue:
                     origin = active_vmerge.get(col_idx)
@@ -111,14 +152,18 @@ class Table:
 
                 col_idx += colspan
 
-            # 将本行未显式出现但仍在 vMerge 中的列补齐
+            # 将本行未显式出现但仍在 vMerge 中的列补齐；省略的首尾坐标不属于本行。
             for c, origin in active_vmerge.items():
-                if c not in row_map:
+                if before <= c < row_end and c not in row_map:
                     origin._grow_rowspan_to(r_idx + 1)
                     row_map[c] = origin
 
             if row_map:
-                max_cols = max(max_cols, max(row_map.keys()) + 1)
+                # tblGrid is authoritative. Valid documents cannot place a cell
+                # beyond it; retaining the max also keeps malformed fallback rows
+                # addressable without changing the declared grid width.
+                if grid_width is None:
+                    max_cols = max(max_cols, max(row_map.keys()) + 1)
             row_maps.append(row_map)
 
         # 生成最终 grid：每行是“实际出现过的 Cell（去重）”列表（用于 bounds/shape 辅助）

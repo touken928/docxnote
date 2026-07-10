@@ -77,3 +77,24 @@ def test_concurrent_comment_and_render(simple_doc):
 
     assert not errors
     assert len(doc.render()) > 100
+
+
+def test_iter_paragraphs_releases_lock_while_paused(simple_doc):
+    doc = DocxDocument.parse(simple_doc)
+    iterator = doc.iter_paragraphs()
+    next(iterator)
+
+    started = threading.Event()
+    finished = threading.Event()
+
+    def add_comment() -> None:
+        started.set()
+        paragraph = next(p for p in doc.blocks() if isinstance(p, Paragraph) and p.text)
+        paragraph.comment("concurrent", start=0, end=1)
+        finished.set()
+
+    worker = threading.Thread(target=add_comment)
+    worker.start()
+    assert started.wait(timeout=1)
+    assert finished.wait(timeout=1)
+    worker.join(timeout=1)

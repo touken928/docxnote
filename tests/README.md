@@ -19,6 +19,12 @@ uv run pytest -v
 uv run pytest tests/xml/test_xml_validity.py
 ```
 
+## Coverage
+
+```bash
+uv run pytest --cov=docxnote --cov-report=term-missing
+```
+
 ## Test layout
 
 - **cli/**

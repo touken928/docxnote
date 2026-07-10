@@ -19,6 +19,49 @@ def _first_paragraph_with_text(doc: DocxDocument) -> Paragraph:
 
 
 class TestCommentReading:
+    def test_stale_paragraph_wrapper_observes_new_comments(self, simple_doc):
+        doc = DocxDocument.parse(simple_doc)
+        first = _first_paragraph_with_text(doc)
+        fresh = next(
+            p for p in doc.blocks() if isinstance(p, Paragraph) and p.path == first.path
+        )
+
+        assert first.comments == ()
+        fresh.comment("new", start=0, end=1, author="tester")
+
+        assert [c.text for c in first.comments] == ["new"]
+
+    def test_negative_and_oversized_range_across_hyperlink(self):
+        pd_doc = PythonDocxDocument()
+        paragraph = pd_doc.add_paragraph()
+        paragraph.add_run("AB")
+        part = paragraph.part
+        rel_id = part.relate_to(
+            "https://example.com",
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+            is_external=True,
+        )
+        hyperlink = etree.Element(
+            f"{{{NS['w']}}}hyperlink", {f"{{{NS['r']}}}id": rel_id}
+        )
+        run = etree.SubElement(hyperlink, f"{{{NS['w']}}}r")
+        text = etree.SubElement(run, f"{{{NS['w']}}}t")
+        text.text = "CDEF"
+        paragraph._p.append(hyperlink)
+
+        buffer = BytesIO()
+        pd_doc.save(buffer)
+        doc = DocxDocument.parse(buffer.getvalue())
+        para = _first_paragraph_with_text(doc)
+
+        created = para.comment("range", start=-4, end=999, author="tester")
+        assert (created.start, created.end) == (2, 6)
+
+        out = doc.render()
+        doc2 = DocxDocument.parse(out, keep_comments=True)
+        read_back = _first_paragraph_with_text(doc2).comments[0]
+        assert (read_back.start, read_back.end) == (2, 6)
+
     def test_partial_comment_preserves_non_text_run_content(self):
         """局部批注拆分 run 时不应丢失非文本节点。"""
         pd_doc = PythonDocxDocument()
@@ -50,7 +93,9 @@ class TestCommentReading:
 
         doc2 = DocxDocument.parse(out, keep_comments=True)
         para2 = _first_paragraph_with_text(doc2)
-        matched = [c for c in para2.comments if c.text == "inner" and c.author == "tester"]
+        matched = [
+            c for c in para2.comments if c.text == "inner" and c.author == "tester"
+        ]
         assert matched
         assert (matched[0].start, matched[0].end) == (1, 3)
         assert para2.text == "ABCD"
@@ -88,7 +133,9 @@ class TestCommentReading:
         doc2 = DocxDocument.parse(out, keep_comments=True)
         para2 = _first_paragraph_with_text(doc2)
 
-        matched = [c for c in para2.comments if c.text == "link" and c.author == "tester"]
+        matched = [
+            c for c in para2.comments if c.text == "link" and c.author == "tester"
+        ]
         assert matched
         assert (matched[0].start, matched[0].end) == (0, 5)
         assert para2.text[matched[0].start : matched[0].end] == "Click"
@@ -112,7 +159,9 @@ class TestCommentReading:
         doc2 = DocxDocument.parse(out, keep_comments=True)
         para2 = _first_paragraph_with_text(doc2)
 
-        matched = [c for c in para2.comments if c.text == "inner" and c.author == "tester"]
+        matched = [
+            c for c in para2.comments if c.text == "inner" and c.author == "tester"
+        ]
         assert matched
         assert (matched[0].start, matched[0].end) == (1, 3)
         assert para2.text[matched[0].start : matched[0].end] == "BC"
