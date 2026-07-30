@@ -167,7 +167,9 @@ class DocxDocument:
 
             for run in p.findall(".//w:r", NS):
                 for child in run:
-                    tag = etree.QName(child.tag).localname
+                    tag = etree.QName(
+                        child.tag,  # ty: ignore[invalid-argument-type]
+                    ).localname
                     if tag == "t":
                         if child.text:
                             parts.append(child.text)
@@ -188,7 +190,9 @@ class DocxDocument:
             para_idx = 0
             table_idx = 0
             for child in self._body:
-                tag = etree.QName(child.tag).localname
+                tag = etree.QName(
+                    child.tag,  # ty: ignore[invalid-argument-type]
+                ).localname
                 if tag == "p":
                     blocks.append(
                         Paragraph(child, self, path=build_segment("p", para_idx))
@@ -265,8 +269,11 @@ class DocxDocument:
                 out_zip.writestr(item, self._zip.read(item))
 
             # 写入修改后的 document.xml
+            document_xml = self._document_xml
+            if document_xml is None:
+                raise RuntimeError("Document XML is not loaded")
             doc_bytes = etree.tostring(
-                self._document_xml,
+                document_xml,
                 xml_declaration=True,
                 encoding="UTF-8",
                 standalone=True,

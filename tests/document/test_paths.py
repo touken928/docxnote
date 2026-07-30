@@ -84,4 +84,4 @@ class TestParsePath:
 
     def test_non_str(self):
         with pytest.raises(TypeError):
-            parse_path(123)  # type: ignore[arg-type]
+            parse_path(123)  # type: ignore[arg-type, ty:invalid-argument-type]

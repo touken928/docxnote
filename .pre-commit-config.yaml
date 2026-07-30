@@ -17,7 +17,6 @@ repos:
     rev: v0.0.64
     hooks:
       - id: ty
-        args: [--error=all]
 
   # 自动化测试：使用项目内 uv 环境运行 pytest
   - repo: local

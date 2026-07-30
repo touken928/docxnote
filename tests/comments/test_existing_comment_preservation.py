@@ -20,7 +20,9 @@ def _extract_comment_text(comment_el: etree._Element) -> str:
         first_para = False
         for run in p.findall(".//w:r", NS):
             for child in run:
-                tag = etree.QName(child.tag).localname
+                tag = etree.QName(
+                    child.tag,  # ty: ignore[invalid-argument-type]
+                ).localname
                 if tag == "t":
                     if child.text:
                         parts.append(child.text)
@@ -69,8 +71,11 @@ def _make_docx_with_existing_multiline_comment() -> bytes:
         doc_xml = zin.read("word/document.xml")
         doc_tree = etree.fromstring(doc_xml)
         body = doc_tree.find(".//w:body", NS)
+        assert body is not None
         p = body.find("./w:p", NS)
+        assert p is not None
         first_run = p.find("./w:r", NS)
+        assert first_run is not None
 
         crs = etree.Element(
             f"{{{NS['w']}}}commentRangeStart", attrib={f"{{{NS['w']}}}id": "0"}

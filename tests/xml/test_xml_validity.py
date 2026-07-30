@@ -30,7 +30,10 @@ class TestXMLValidity:
             assert doc_tree is not None
 
             # 验证根元素
-            assert etree.QName(doc_tree.tag).localname == "document"
+            assert (
+                etree.QName(doc_tree.tag).localname  # ty: ignore[invalid-argument-type]
+                == "document"
+            )
 
     def test_comments_xml_well_formed(self, simple_doc):
         """测试 comments.xml 格式良好"""
@@ -53,7 +56,12 @@ class TestXMLValidity:
             assert comments_tree is not None
 
             # 验证根元素
-            assert etree.QName(comments_tree.tag).localname == "comments"
+            assert (
+                etree.QName(
+                    comments_tree.tag,  # ty: ignore[invalid-argument-type]
+                ).localname
+                == "comments"
+            )
 
             # 验证至少有一个批注
             assert len(comments_tree) > 0
@@ -152,7 +160,12 @@ class TestXMLValidity:
 
             # 验证每个批注的结构
             for comment in comments_tree:
-                assert etree.QName(comment.tag).localname == "comment"
+                assert (
+                    etree.QName(
+                        comment.tag,  # ty: ignore[invalid-argument-type]
+                    ).localname
+                    == "comment"
+                )
                 assert (
                     comment.get(
                         "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}id"

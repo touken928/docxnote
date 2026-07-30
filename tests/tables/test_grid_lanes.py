@@ -28,7 +28,9 @@ def _document_with_grid_lanes(*, before=0, after=0, grid_width=5, rows=2):
 
     xml = etree.fromstring(files["word/document.xml"])
     tbl = xml.find(f".//{W}tbl")
+    assert tbl is not None
     tbl_grid = tbl.find(f"./{W}tblGrid")
+    assert tbl_grid is not None
     for child in list(tbl_grid):
         tbl_grid.remove(child)
     for _ in range(grid_width):
@@ -42,7 +44,9 @@ def _document_with_grid_lanes(*, before=0, after=0, grid_width=5, rows=2):
             etree.SubElement(tr_pr, f"{W}gridAfter").set(f"{W}val", str(after))
         row.insert(0, tr_pr)
 
-    files["word/document.xml"] = etree.tostring(xml, xml_declaration=True, encoding="UTF-8")
+    files["word/document.xml"] = etree.tostring(
+        xml, xml_declaration=True, encoding="UTF-8"
+    )
     output = BytesIO()
     with zipfile.ZipFile(output, "w") as target:
         for name, data in files.items():
@@ -58,6 +62,7 @@ def _rewrite_table(data, row_specs, mutate=None):
 
     xml = etree.fromstring(files["word/document.xml"])
     tbl = xml.find(f".//{W}tbl")
+    assert tbl is not None
     rows = tbl.findall(f"./{W}tr")
     for row, (before, after) in zip(rows, row_specs):
         tr_pr = row.find(f"./{W}trPr")
@@ -113,9 +118,7 @@ class TestTableGridLanes:
         assert table[1, 2].bounds() == (1, 2, 2, 3)
 
     def test_grid_before_only_keeps_leading_synthetic_lane(self):
-        document = DocxDocument.parse(
-            _document_with_grid_lanes(before=1, grid_width=4)
-        )
+        document = DocxDocument.parse(_document_with_grid_lanes(before=1, grid_width=4))
         table = next(block for block in document.blocks() if isinstance(block, Table))
 
         assert table.shape() == (2, 4)
@@ -127,9 +130,7 @@ class TestTableGridLanes:
         assert document.resolve(table[0, 0].path).path == table[0, 0].path
 
     def test_grid_after_only_keeps_trailing_synthetic_lane(self):
-        document = DocxDocument.parse(
-            _document_with_grid_lanes(after=1, grid_width=4)
-        )
+        document = DocxDocument.parse(_document_with_grid_lanes(after=1, grid_width=4))
         table = next(block for block in document.blocks() if isinstance(block, Table))
 
         assert table.shape() == (2, 4)
@@ -183,10 +184,12 @@ class TestTableGridLanes:
 
         first = rows[0].findall(f"./{W}tc")[0]
         tc_pr = first.find(f"./{W}tcPr")
+        assert tc_pr is not None
         etree.SubElement(tc_pr, f"{W}gridSpan").set(f"{W}val", "2")
         etree.SubElement(tc_pr, f"{W}vMerge").set(f"{W}val", "restart")
         continuation = rows[1].findall(f"./{W}tc")[0]
         continuation_pr = continuation.find(f"./{W}tcPr")
+        assert continuation_pr is not None
         etree.SubElement(continuation_pr, f"{W}gridSpan").set(f"{W}val", "2")
         etree.SubElement(continuation_pr, f"{W}vMerge")
 
@@ -194,7 +197,9 @@ class TestTableGridLanes:
         original = zipfile.ZipFile(BytesIO(data))
         for name in original.namelist():
             files[name] = original.read(name)
-        files["word/document.xml"] = etree.tostring(xml, xml_declaration=True, encoding="UTF-8")
+        files["word/document.xml"] = etree.tostring(
+            xml, xml_declaration=True, encoding="UTF-8"
+        )
         output = BytesIO()
         with zipfile.ZipFile(output, "w") as target:
             for name, content in files.items():
