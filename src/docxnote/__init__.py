@@ -1,4 +1,14 @@
-"""docxnote - 轻量级 DOCX 批注引擎"""
+"""Lightweight Python library for reading, editing, and annotating DOCX files.
+
+Public API:
+    DocxDocument: Open, create, modify, and save documents.
+    Paragraph, Table, Cell: Access document content and structure.
+    Comment: Represent document comments.
+    build_segment, comment_path, join_path, parse_path: Build and parse paths
+        for stable references to paragraphs, tables, cells, and comments.
+
+Comment ranges use ``[start, end)`` character offsets in ``paragraph.text``.
+"""
 
 from .document import DocxDocument
 from .paragraph import Paragraph
