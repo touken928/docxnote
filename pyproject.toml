@@ -1,6 +1,6 @@
 [project]
 name = "docxnote"
-version = "0.3.4"
+version = "0.3.5"
 description = "Lightweight DOCX comment engine based on text view API"
 readme = "README.md"
 license = { text = "Apache-2.0" }

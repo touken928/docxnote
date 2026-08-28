@@ -78,7 +78,10 @@ with open("output.docx", "wb") as f:
 
 表格遍历会正确处理 Word 行中省略的首尾网格列。批注范围基于
 `paragraph.text` 遵循 Python 切片语义，包括负数和超出范围的端点；规范化后
-反向范围会成为锚定在规范化起点的空范围。详见 [API 参考](API_zh.md)。
+反向范围会成为锚定在规范化起点的空范围。范围仅支持单一段落 —— 跨段落或
+未闭合的范围在读取时会抛出 `UnsupportedCommentRangeError`，而解析与渲染会
+原样透传。`Comment.date` 为 `datetime | None`：源 `w:date` 缺失、空白或非法
+时读取为 `None`。详见 [API 参考](API_zh.md)。
 
 ---
 

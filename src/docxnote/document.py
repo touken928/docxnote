@@ -16,17 +16,22 @@ from .comments import Comment
 from .paths import build_segment, comment_path, parse_path
 
 
-def _parse_w_comment_date(value: str | None) -> datetime:
-    """Parse w:date from comments.xml (ISO 8601, often UTC with Z)."""
+def _parse_w_comment_date(value: str | None) -> datetime | None:
+    """Parse w:date from comments.xml (ISO 8601, often UTC with Z).
+
+    Returns ``None`` when the attribute is missing, blank, or not a valid
+    ISO 8601 timestamp. The source attribute is preserved verbatim on render
+    (existing comment elements are re-emitted unchanged).
+    """
     if not value or not str(value).strip():
-        return datetime.now(timezone.utc)
+        return None
     v = str(value).strip()
     if v.endswith("Z"):
         v = v[:-1] + "+00:00"
     try:
         return datetime.fromisoformat(v)
     except ValueError:
-        return datetime.now(timezone.utc)
+        return None
 
 
 def _format_w_comment_date(dt: datetime) -> str:
@@ -54,8 +59,8 @@ class DocxDocument:
         self._zip = zipfile.ZipFile(io.BytesIO(zip_data))
         self._document_xml = None
         self._body = None
-        self._comments: list[tuple[int, str, str, datetime]] = []
-        self._comment_index: dict[int, tuple[str, str, datetime]] = {}
+        self._comments: list[tuple[int, str, str, datetime | None]] = []
+        self._comment_index: dict[int, tuple[str, str, datetime | None]] = {}
         self._existing_comment_elements: dict[int, etree._Element] = {}
         self._comments_root_template: etree._Element | None = None
         self._comment_id_counter = 0
@@ -237,8 +242,13 @@ class DocxDocument:
             self._comment_index[comment_id] = meta
             return comment_id
 
-    def _get_comment_meta(self, comment_id: int) -> Optional[Tuple[str, str, datetime]]:
-        """根据 comment_id 返回批注的 (text, author, date)。"""
+    def _get_comment_meta(
+        self, comment_id: int
+    ) -> Optional[Tuple[str, str, datetime | None]]:
+        """根据 comment_id 返回批注的 (text, author, date)。
+
+        ``date`` 为 ``None`` 表示源 ``w:date`` 缺失、空白或非法。
+        """
         return self._comment_index.get(comment_id)
 
     def render(self) -> bytes:
@@ -305,9 +315,12 @@ class DocxDocument:
         for comment_id, text, author, date_val in self._comments:
             existing = self._existing_comment_elements.get(comment_id)
             if existing is not None:
+                # 已有批注原样透传（含缺失/非法的 w:date 属性）
                 root.append(deepcopy(existing))
                 continue
 
+            # 新增批注的 date 一定是真实 datetime（add_comment 已兜底）
+            assert date_val is not None
             root.append(
                 self._build_new_comment_element(comment_id, text, author, date_val)
             )
@@ -445,7 +458,14 @@ class DocxDocument:
         return etree.tostring(ct_xml, xml_declaration=True, encoding="UTF-8")
 
     def comments(self) -> tuple[Comment, ...]:
-        """返回文档中所有批注（按文档遍历顺序）。"""
+        """返回文档中所有批注（按文档遍历顺序）。
+
+        每个段落内的批注按其 ``commentRangeStart`` 的 XML 文档顺序排列。
+
+        Raises:
+            UnsupportedCommentRangeError: 任一段落上存在跨段落或未闭合的
+                批注范围。
+        """
         with self._lock:
             result: list[Comment] = []
             for para in self.iter_paragraphs():

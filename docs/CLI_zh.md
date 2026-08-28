@@ -75,8 +75,11 @@ JSON 结构：
 
 // 批注
 {"type": "comment", "path": "p:1#3", "paragraph": "p:1",
- "start": 0, "end": 5, "text": "...", "author": "...", "date": "ISO-8601"}
+ "start": 0, "end": 5, "text": "...", "author": "...", "date": "ISO-8601 或 null"}
 ```
+
+`date` 对应批注的 `w:date` 属性：JSON 中是 ISO-8601 字符串，批注缺失（或非法）
+日期时为 `null`；显示日期的纯文本视图把缺失值渲染为 `unknown`。
 
 纯文本模式适合 `less` / `grep`。
 
@@ -138,7 +141,8 @@ docxnote annotate in.docx out.docx \
 - 任一操作的 `path` 没解析到段落，则以状态码 `2` 退出，**不写任何文件**。
 - 操作对象只能包含 `path`、`text`、`start`、`end`、`author`。`path` 必须是非空字符串；
   `text` 与 `author` 必须是字符串（允许空字符串）；`start` 必须是非布尔整数；
-  `end` 必须是非布尔整数或 JSON `null`。省略 `start`、`end`、`author` 时使用上述默认值。
+  `end` 必须是非布尔整数或 JSON `null`（`null` 表示*段末*，与 `--end` 默认值一致）。
+  省略 `start`、`end`、`author` 时使用上述默认值。
 - `INPUT` 与 `OUTPUT` 不能指向同一个文件，包括相对路径、符号链接和硬链接别名。
   文档先写入同目录临时文件，再原子替换到 `OUTPUT`；校验或预期的输入/输出失败
   不会改动已有输出文件。
@@ -146,12 +150,25 @@ docxnote annotate in.docx out.docx \
 
 ---
 
-## 退出码
+## 错误处理与退出码
+
+所有失败都会向 stderr 输出一行 `error: …` 并以退出码 `2` 结束，stdout 保持为空。
+其中包括精确识别的非法输入：
+
+- 文件根本不是 ZIP 归档（`zipfile.BadZipFile`）；
+- `word/document.xml`（或包内其他部件）不是合法 XML（`lxml.etree.XMLSyntaxError`）。
+
+`annotate` 会先完成全部校验与渲染、再触碰文件系统：失败时已有的 `OUTPUT`
+保持不变。
+
+跨段落（或未闭合）锚定的批注范围无法按段落呈现；通过 `show` / `comments`
+读取时会以退出码 `2` 失败，因为核心层抛出 `UnsupportedCommentRangeError`
+（`ValueError` 子类）。
 
 | 码 | 含义 |
 |----|------|
 | `0` | 成功 |
-| `2` | 用户错误：参数错、文件不存在、路径无法解析、spec 非法等 |
+| `2` | 用户错误：参数错、文件不存在、路径无法解析、spec 非法、DOCX 输入损坏、跨段落批注范围等 |
 
 ---
 

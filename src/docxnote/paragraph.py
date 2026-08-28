@@ -7,8 +7,11 @@ from typing import List, Tuple
 from lxml import etree
 
 from .namespaces import NS
-from .comments import Comment
+from .comments import Comment, UnsupportedCommentRangeError
 from .paths import comment_path
+
+# w:t 首尾含空白时必须声明 xml:space="preserve"，否则 Word 会剥离空白
+_XML_SPACE_ATTR = "{http://www.w3.org/XML/1998/namespace}space"
 
 
 class Paragraph:
@@ -240,6 +243,8 @@ class Paragraph:
                     if before_text:
                         before_child = deepcopy(child)
                         before_child.text = before_text
+                        if before_text != before_text.strip():
+                            before_child.set(_XML_SPACE_ATTR, "preserve")
                         before_run.append(before_child)
 
                 if split_offset < next_pos:
@@ -247,6 +252,8 @@ class Paragraph:
                     if after_text:
                         after_child = deepcopy(child)
                         after_child.text = after_text
+                        if after_text != after_text.strip():
+                            after_child.set(_XML_SPACE_ATTR, "preserve")
                         after_run.append(after_child)
 
                 current_pos = next_pos
@@ -277,42 +284,67 @@ class Paragraph:
         """按段落文本坐标返回本段落上的批注范围列表。
 
         返回列表元素为 ``(comment_id, start, end)``，其中 start/end 基于
-        ``paragraph.text`` 的字符索引区间 [start, end)。
+        ``paragraph.text`` 的字符索引区间 [start, end)，并按
+        ``commentRangeStart`` 的 XML 文档顺序排序（嵌套批注外层在前）。
+
+        Raises:
+            UnsupportedCommentRangeError: 存在跨段落或未闭合的批注范围。
         """
-        ranges: list[tuple[int, int, int]] = []
-        open_starts: dict[int, int] = {}
+        ranges: list[tuple[int, int, int, int]] = []
+        open_starts: dict[int, tuple[int, int]] = {}
 
         self._walk_comment_ranges(self._element, 0, open_starts, ranges)
 
-        return ranges
+        if open_starts:
+            unclosed = ", ".join(str(cid) for cid in open_starts)
+            raise UnsupportedCommentRangeError(
+                f"comment range(s) [{unclosed}] on paragraph '{self._path}' "
+                "have no matching commentRangeEnd in this paragraph; comment "
+                "ranges that cross paragraphs or are left unclosed are not "
+                "supported by the range view"
+            )
 
-    def _walk_comment_ranges(self, container, current_pos, open_starts, ranges):
-        """递归遍历段落内容，收集批注范围。"""
+        # 稳定排序：先按起点字符位置，再按 commentRangeStart 的文档顺序
+        ranges.sort(key=lambda item: (item[1], item[3]))
+        return [(cid, start, end) for cid, start, end, _seq in ranges]
+
+    def _walk_comment_ranges(
+        self,
+        container,
+        current_pos: int,
+        open_starts: dict[int, tuple[int, int]],
+        ranges: list[tuple[int, int, int, int]],
+    ) -> int:
+        """递归遍历段落内容，收集批注范围。
+
+        ``open_starts`` 为 ``comment_id -> (start_pos, start_seq)``，
+        ``start_seq`` 是 ``commentRangeStart`` 的文档顺序号，用于稳定排序。
+        """
         for child in container:
             tag = etree.QName(child.tag).localname
 
             if tag == "commentRangeStart":
-                cid_attr = child.get(f"{{{NS['w']}}}id")
-                if cid_attr is None:
+                cid = self._comment_marker_id(child)
+                if cid is None:
                     continue
-                try:
-                    cid = int(cid_attr)
-                except ValueError:
-                    continue
-                open_starts.setdefault(cid, current_pos)
+                if cid not in open_starts:
+                    open_starts[cid] = (current_pos, len(open_starts))
                 continue
 
             if tag == "commentRangeEnd":
-                cid_attr = child.get(f"{{{NS['w']}}}id")
-                if cid_attr is None:
+                cid = self._comment_marker_id(child)
+                if cid is None:
                     continue
-                try:
-                    cid = int(cid_attr)
-                except ValueError:
-                    continue
-                start_pos = open_starts.pop(cid, current_pos)
-                if start_pos <= current_pos:
-                    ranges.append((cid, start_pos, current_pos))
+                entry = open_starts.pop(cid, None)
+                if entry is None:
+                    raise UnsupportedCommentRangeError(
+                        f"comment range {cid} on paragraph '{self._path}' has "
+                        "a commentRangeEnd without a matching commentRangeStart "
+                        "in this paragraph; comment ranges that cross paragraphs "
+                        "or are left unclosed are not supported by the range view"
+                    )
+                start_pos, start_seq = entry
+                ranges.append((cid, start_pos, current_pos, start_seq))
                 continue
 
             if tag == "r":
@@ -325,9 +357,28 @@ class Paragraph:
 
         return current_pos
 
+    @staticmethod
+    def _comment_marker_id(element) -> int | None:
+        """读取批注标记的 ``w:id``；缺失或非法时返回 ``None``。"""
+        cid_attr = element.get(f"{{{NS['w']}}}id")
+        if cid_attr is None:
+            return None
+        try:
+            return int(cid_attr)
+        except ValueError:
+            return None
+
     @property
     def comments(self) -> tuple[Comment, ...]:
-        """返回附着在本段落上的所有批注（按文档顺序）。"""
+        """返回附着在本段落上的所有批注。
+
+        批注按其 ``commentRangeStart`` 标记的 XML 文档顺序返回
+        （嵌套批注外层在前）。批注范围仅支持单一段落：跨段落或未闭合的
+        范围会抛出 :class:`UnsupportedCommentRangeError`。
+
+        Raises:
+            UnsupportedCommentRangeError: 存在跨段落或未闭合的批注范围。
+        """
         with self._document._lock:
             ranges = self._iter_comment_ranges()
             result: list[Comment] = []

@@ -307,4 +307,5 @@ class TestCommentReading:
         matched = [c for c in cs if c.text == "dated" and c.author == "tester"]
         assert matched
         # 使用 UTC 时区比较
+        assert matched[0].date is not None
         assert matched[0].date.astimezone(timezone.utc) == fixed

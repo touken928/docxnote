@@ -82,8 +82,12 @@ JSON schemas:
 
 // comment
 {"type": "comment", "path": "p:1#3", "paragraph": "p:1",
- "start": 0, "end": 5, "text": "...", "author": "...", "date": "ISO-8601"}
+ "start": 0, "end": 5, "text": "...", "author": "...", "date": "ISO-8601 | null"}
 ```
+
+`date` mirrors the comment's `w:date` attribute: an ISO-8601 string, or
+`null` in JSON when the comment carries no (valid) date. Plain-text views that
+display the date render a missing value as `unknown`.
 
 Plain output is human-readable and suitable for piping into less/grep.
 
@@ -154,7 +158,8 @@ may be combined with `--spec` and is appended last.
 - Operation objects may contain only `path`, `text`, `start`, `end`, and
   `author`. `path` must be a nonempty string; `text` and `author` must be
   strings, including empty strings; `start` must be an integer other than a
-  boolean; and `end` must be an integer other than a boolean or JSON `null`.
+  boolean; and `end` must be an integer other than a boolean, or JSON `null`
+  (which means *end of paragraph*, matching the `--end` default).
   Omitted `start`, `end`, and `author` retain the defaults shown above.
 - `INPUT` and `OUTPUT` must not identify the same filesystem file, including
   through relative paths, symlinks, or hard links. The document is rendered to
@@ -164,12 +169,27 @@ may be combined with `--spec` and is appended last.
 
 ---
 
-## Exit codes
+## Error handling and exit codes
+
+Every failure prints a single `error: …` line to stderr and exits with code
+`2`; stdout stays empty. This includes precisely detected invalid input:
+
+- a file that is not a ZIP archive at all (`zipfile.BadZipFile`);
+- a `word/document.xml` (or other package part) that is not well-formed XML
+  (`lxml.etree.XMLSyntaxError`).
+
+`annotate` validates and renders everything before touching the filesystem:
+when it fails, an existing `OUTPUT` is left unchanged.
+
+Comments whose anchored range spans multiple paragraphs (or is left unclosed)
+cannot be exposed as per-paragraph ranges; reading them through `show` /
+`comments` fails with exit code `2` because the library raises
+`UnsupportedCommentRangeError`, a `ValueError` subclass.
 
 | code | meaning |
 |------|---------|
 | `0` | success |
-| `2` | user error: bad arguments, missing file, unresolved path, invalid spec |
+| `2` | user error: bad arguments, missing file, unresolved path, invalid spec, invalid DOCX input, unsupported cross-paragraph comment range |
 
 ---
 

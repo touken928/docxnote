@@ -98,7 +98,14 @@ Fields:
 
 - `path` — addressable path of this comment, e.g. `"t:0/r:0/c:0/p:0#3"`; can be passed back to `doc.resolve(...)`
 - `start` / `end` — character offsets into `paragraph.text` (`[start, end)`)
-- `text` / `author` / `date` — comment body, author, and `w:date` (UTC)
+- `text` / `author` — comment body and author
+- `date` — `datetime | None`; parsed from the comment's `w:date` (UTC). It is `None` when the source attribute is missing, blank, or invalid. With `keep_comments=True`, the source `w:date` attribute is preserved verbatim on render (missing stays missing, invalid strings are re-emitted unchanged).
+
+Comments are returned in the XML document order of their `commentRangeStart` markers, so for nested ranges the outer comment comes before the inner one.
+
+### Single-paragraph scope
+
+Comment ranges are scoped to a single paragraph: `commentRangeStart` and `commentRangeEnd` must both live in the same paragraph. The high-level range views — `paragraph.comments`, `doc.comments()`, and `doc.resolve("p:0#N")` — raise `UnsupportedCommentRangeError` (a `ValueError` subclass, importable from `docxnote`) when a document contains a range that crosses paragraphs or is left unclosed. `DocxDocument.parse` and `doc.render()` are unaffected: such XML is passed through unchanged, so you can still strip it (`keep_comments=False`) or re-emit it (`keep_comments=True`) without inspecting ranges.
 
 ### text
 
@@ -123,7 +130,7 @@ paragraph.comment(
 )
 ```
 
-Adds a comment spanning the given character range in the paragraph. The range is always interpreted against `paragraph.text` using Python slice semantics (`[start, end)`), including negative and oversized endpoints. `end=None` means the paragraph end; if the normalized end precedes the normalized start, the range becomes zero-length at the normalized start. docxnote splits runs and places anchors automatically, including inside nested paragraph content such as hyperlinks. The `w:date` value in `comments.xml` is stored in UTC (`…Z`). A naive `datetime` (no `tzinfo`) is treated as UTC.
+Adds a comment spanning the given character range in the paragraph. The range is always interpreted against `paragraph.text` using Python slice semantics (`[start, end)`), including negative and oversized endpoints. `end=None` means the paragraph end; if the normalized end precedes the normalized start, the range becomes zero-length at the normalized start. docxnote splits runs and places anchors automatically, including inside nested paragraph content such as hyperlinks. The `w:date` value in `comments.xml` is stored in UTC (`…Z`). A naive `datetime` (no `tzinfo`) is treated as UTC. Newly created comments always carry a concrete `datetime` — `date=None` means the current system time (timezone-aware), never `None`.
 
 `paragraph.comment(...)` returns the newly created `Comment`, whose `path` can be used later with `doc.resolve(...)`.
 
@@ -149,7 +156,7 @@ for c in comments:
     ...
 ```
 
-This walks all paragraphs in the document (including inside tables and nested tables) and returns all comments in document order. Each paragraph wrapper computes its current comments when accessed, so an older wrapper observes comments added through another wrapper. Respecting `keep_comments`: with `keep_comments=False` only comments added in the current session are visible; with `keep_comments=True` existing comments from the DOCX are also exposed and preserved on render.
+This walks all paragraphs in the document (including inside tables and nested tables) and returns all comments in document order. Each paragraph wrapper computes its current comments when accessed, so an older wrapper observes comments added through another wrapper. Respecting `keep_comments`: with `keep_comments=False` only comments added in the current session are visible; with `keep_comments=True` existing comments from the DOCX are also exposed and preserved on render. If any paragraph holds a cross-paragraph or unclosed comment range, `doc.comments()` raises `UnsupportedCommentRangeError`.
 
 ---
 

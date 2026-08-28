@@ -76,7 +76,11 @@ with open("output.docx", "wb") as f:
 Table traversal accounts for Word tables whose rows omit leading or trailing grid
 columns. Comment ranges use Python slice semantics on `paragraph.text`, including
 negative and oversized endpoints; a reversed range is an empty anchor at its
-normalized start. See the [API reference](docs/API.md) for details.
+normalized start. Ranges are scoped to a single paragraph — cross-paragraph or
+unclosed ranges raise `UnsupportedCommentRangeError` when read, while parse and
+render pass them through unchanged. `Comment.date` is `datetime | None`: a
+missing, blank, or invalid `w:date` reads as `None`. See the
+[API reference](docs/API.md) for details.
 
 ---
 

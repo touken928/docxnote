@@ -135,7 +135,17 @@ for c in paragraph.comments:
 - `c.start` / `c.end` are character offsets into `paragraph.text` using
   Python slice semantics: `[start, end)`.
 - `c.text` is the comment body.
-- `c.date` comes from the comment's `w:date` value.
+- `c.date` is `datetime | None`, parsed from the comment's `w:date`. It is
+  `None` when the source attribute is missing, blank, or invalid; always
+  handle the `None` case before formatting.
+- Comments are returned in the XML document order of their
+  `commentRangeStart` markers, so for nested ranges the outer comment comes
+  before the inner one.
+- Comment ranges are scoped to a single paragraph. If a document contains a
+  range that crosses paragraphs or is left unclosed, reading
+  `paragraph.comments`, `doc.comments()`, or resolving a `#id` path raises
+  `UnsupportedCommentRangeError` (a `ValueError` subclass). Parse and render
+  still pass such XML through unchanged.
 - `paragraph.comments` is read from current document state on each access, so a
   previously obtained paragraph wrapper sees comments added through another
   wrapper.
@@ -156,6 +166,9 @@ new = paragraph.comment(
 - Negative and oversized endpoints are normalized like a Python slice. If the
   normalized end is before the normalized start, the result is a zero-length
   anchor at the normalized start.
+- `date=None` (default) stamps the comment with the current system time
+  (timezone-aware); pass an explicit `datetime` to control it. Newly created
+  comments always carry a concrete `datetime`, never `None`.
 - Returned `Comment.path` can be stored and later resolved with
   `doc.resolve(...)`.
 - Offsets are character-based, not byte-based.
@@ -296,6 +309,13 @@ if not (paragraph.text or "").strip():
 - Do not forget to call `doc.render()`; comments only exist in memory before
   render.
 - Do not compute offsets from bytes; use normal Python string indexing.
+- Do not assume every comment in a document is readable through the range
+  view: ranges that cross paragraphs or are left unclosed raise
+  `UnsupportedCommentRangeError` when you access `paragraph.comments` /
+  `doc.comments()`. Either strip them (`keep_comments=False`) or catch the
+  error explicitly.
+- Do not format `c.date` without a `None` check; comments without a valid
+  `w:date` expose `date=None`.
 
 ## When to prefer docxnote
 
@@ -314,6 +334,7 @@ Choose `docxnote` when the task involves:
 - Add comment: `paragraph.comment(...)`
 - Paragraph comments: `paragraph.comments`
 - All comments: `doc.comments()`
+- Range view error: `UnsupportedCommentRangeError` (cross-paragraph / unclosed ranges)
 - Resolve by path: `doc.resolve("p:0")`
 - Iterate all paragraphs: `doc.iter_paragraphs()`
 - Table shape: `table.shape()`

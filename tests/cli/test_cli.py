@@ -2,22 +2,106 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import stat
+import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from lxml import etree
 
 import docxnote.cli as cli_module
-from docxnote import DocxDocument
+from docxnote import Comment, DocxDocument, Paragraph
 from docxnote.cli import main
+from docxnote.namespaces import NS
 
 
 def _write(tmp_path: Path, name: str, data: bytes) -> Path:
     p = tmp_path / name
     p.write_bytes(data)
     return p
+
+
+def _invalid_zip_bytes() -> bytes:
+    return b"this is definitely not a zip archive"
+
+
+def _doc_with_malformed_document_xml(source: bytes) -> bytes:
+    """保留 ZIP 容器与其余部件，仅把 word/document.xml 换成畸形 XML。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(source)) as zin, zipfile.ZipFile(buf, "w") as zout:
+        for item in zin.namelist():
+            data = zin.read(item)
+            if item == "word/document.xml":
+                data = (
+                    b"<w:document "
+                    b"xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'>"
+                    b"<w:body><w:p"
+                )
+            zout.writestr(item, data)
+    return buf.getvalue()
+
+
+def _fake_comment(date):
+    """构造不依赖核心解析的 Comment 视图（date 允许为 None，见核心层 datetime | None）。"""
+    return Comment(
+        paragraph=SimpleNamespace(path="p:1"),  # ty: ignore[invalid-argument-type]
+        path="p:1#0",
+        start=0,
+        end=2,
+        text="note",
+        author="a",
+        date=date,
+    )
+
+
+def _annotated_doc(source: bytes, *, date=None) -> bytes:
+    """用库本身在 p:1 上加一条批注（id=0，路径 p:1#0），返回渲染后的 docx。"""
+    doc = DocxDocument.parse(source)
+    paras = [b for b in doc.blocks() if isinstance(b, Paragraph)]
+    paras[1].comment("note", start=0, end=2, author="a", date=date)
+    return doc.render()
+
+
+def _strip_comment_date(source: bytes) -> bytes:
+    """删除 comments.xml 中的 w:date 属性，构造缺失日期的批注文档。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(source)) as zin, zipfile.ZipFile(buf, "w") as zout:
+        for item in zin.namelist():
+            data = zin.read(item)
+            if item == "word/comments.xml":
+                root = etree.fromstring(data)
+                for el in root.findall(".//w:comment", NS):
+                    el.attrib.pop(f"{{{NS['w']}}}date", None)
+                data = etree.tostring(
+                    root, xml_declaration=True, encoding="UTF-8", standalone=True
+                )
+            zout.writestr(item, data)
+    return buf.getvalue()
+
+
+def _move_comment_end_to_next_paragraph(source: bytes) -> bytes:
+    """把 p:1 的 commentRangeEnd 移到下一段，构造跨段落批注范围。"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(source)) as zin, zipfile.ZipFile(buf, "w") as zout:
+        for item in zin.namelist():
+            data = zin.read(item)
+            if item == "word/document.xml":
+                root = etree.fromstring(data)
+                paras = root.findall(".//w:body/w:p", NS)
+                end = paras[1].find(".//w:commentRangeEnd", NS)
+                assert end is not None, "fixture expects a commentRangeEnd in p:1"
+                paras[1].remove(end)
+                paras[2].append(end)
+                data = etree.tostring(
+                    root, xml_declaration=True, encoding="UTF-8", standalone=True
+                )
+            zout.writestr(item, data)
+    return buf.getvalue()
 
 
 class TestListCommand:
@@ -415,6 +499,163 @@ class TestFileErrors:
         rc = main(["list", str(tmp_path / "nope.docx")])
         assert rc == 2
         assert "error" in capsys.readouterr().err.lower()
+
+
+class TestCorruptDocs:
+    """非法 ZIP / 畸形 document.xml 必须统一为 stderr ``error:`` + 退出码 2。"""
+
+    def test_invalid_zip_reports_error_and_exit_2(self, capsys, tmp_path):
+        infile = _write(tmp_path, "bad.docx", _invalid_zip_bytes())
+        rc = main(["list", str(infile)])
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert err.startswith("error:")
+        assert "Traceback" not in err
+
+    @pytest.mark.parametrize("command", ["show", "comments"])
+    def test_invalid_zip_on_read_commands(self, capsys, tmp_path, command):
+        infile = _write(tmp_path, "bad.docx", _invalid_zip_bytes())
+        argv = [command, str(infile)] + (["p:0"] if command == "show" else [])
+        assert main(argv) == 2
+        assert capsys.readouterr().err.startswith("error:")
+
+    def test_malformed_document_xml_reports_error_and_exit_2(
+        self, capsys, tmp_path, simple_doc
+    ):
+        infile = _write(
+            tmp_path, "broken.docx", _doc_with_malformed_document_xml(simple_doc)
+        )
+        rc = main(["comments", str(infile), "--json"])
+        assert rc == 2
+        err = capsys.readouterr().err
+        assert err.startswith("error:")
+        assert "Traceback" not in err
+
+    def test_annotate_invalid_zip_preserves_existing_output(self, capsys, tmp_path):
+        infile = _write(tmp_path, "bad.docx", _invalid_zip_bytes())
+        outfile = _write(tmp_path, "out.docx", b"prior output")
+        rc = main(
+            ["annotate", str(infile), str(outfile), "--path", "p:0", "--text", "x"]
+        )
+        assert rc == 2
+        assert outfile.read_bytes() == b"prior output"
+        assert capsys.readouterr().err.startswith("error:")
+        assert list(tmp_path.glob(f".{outfile.name}.*.tmp")) == []
+
+    def test_annotate_malformed_document_xml_preserves_existing_output(
+        self, capsys, tmp_path, simple_doc
+    ):
+        infile = _write(
+            tmp_path, "broken.docx", _doc_with_malformed_document_xml(simple_doc)
+        )
+        outfile = _write(tmp_path, "out.docx", b"prior output")
+        assert (
+            main(
+                [
+                    "annotate",
+                    str(infile),
+                    str(outfile),
+                    "--path",
+                    "p:0",
+                    "--text",
+                    "x",
+                ]
+            )
+            == 2
+        )
+        assert outfile.read_bytes() == b"prior output"
+        assert capsys.readouterr().err.startswith("error:")
+
+
+class TestCommentDateRendering:
+    """Comment.date 允许为 None（核心层 datetime | None）时的 JSON / plain 输出。"""
+
+    def test_comment_to_dict_json_null_for_missing_date(self):
+        payload = cli_module._comment_to_dict(_fake_comment(None))
+        assert payload["date"] is None
+        assert '"date": null' in json.dumps(payload, ensure_ascii=False)
+
+    def test_comment_to_dict_json_isoformat_for_present_date(self):
+        fixed = datetime(2021, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+        payload = cli_module._comment_to_dict(_fake_comment(fixed))
+        assert payload["date"] == fixed.isoformat()
+
+    def test_show_json_null_date(self, capsys, tmp_path, simple_doc):
+        infile = _write(
+            tmp_path,
+            "in.docx",
+            _strip_comment_date(_annotated_doc(simple_doc)),
+        )
+        assert main(["show", str(infile), "p:1#0", "--json"]) == 0
+        data = json.loads(capsys.readouterr().out)
+        assert data["type"] == "comment"
+        assert data["date"] is None
+
+    def test_show_plain_unknown_date(self, capsys, tmp_path, simple_doc):
+        infile = _write(
+            tmp_path,
+            "in.docx",
+            _strip_comment_date(_annotated_doc(simple_doc)),
+        )
+        assert main(["show", str(infile), "p:1#0"]) == 0
+        out = capsys.readouterr().out
+        assert "date: unknown" in out
+        assert "None" not in out
+
+    def test_show_plain_paragraph_comment_unknown_date(
+        self, capsys, tmp_path, simple_doc
+    ):
+        infile = _write(
+            tmp_path,
+            "in.docx",
+            _strip_comment_date(_annotated_doc(simple_doc)),
+        )
+        assert main(["show", str(infile), "p:1"]) == 0
+        out = capsys.readouterr().out
+        assert "unknown" in out
+        assert "None" not in out
+
+    def test_comments_json_null_date(self, capsys, tmp_path, simple_doc):
+        infile = _write(
+            tmp_path,
+            "in.docx",
+            _strip_comment_date(_annotated_doc(simple_doc)),
+        )
+        assert main(["comments", str(infile), "--json"]) == 0
+        items = json.loads(capsys.readouterr().out)
+        assert items[0]["path"] == "p:1#0"
+        assert items[0]["date"] is None
+
+
+class TestCrossParagraphRange:
+    """跨段落批注范围：核心层抛 UnsupportedCommentRangeError（ValueError 子类），
+    CLI 高层读命令必须映射为 stderr ``error:`` + 退出码 2，且 stdout 为空。"""
+
+    def test_comments_command_exits_2_on_cross_paragraph_range(
+        self, capsys, tmp_path, simple_doc
+    ):
+        infile = _write(
+            tmp_path,
+            "cross.docx",
+            _move_comment_end_to_next_paragraph(_annotated_doc(simple_doc)),
+        )
+        assert main(["comments", str(infile), "--json"]) == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err.startswith("error:")
+
+    def test_show_command_exits_2_on_cross_paragraph_range(
+        self, capsys, tmp_path, simple_doc
+    ):
+        infile = _write(
+            tmp_path,
+            "cross.docx",
+            _move_comment_end_to_next_paragraph(_annotated_doc(simple_doc)),
+        )
+        assert main(["show", str(infile), "p:1#0"]) == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert captured.err.startswith("error:")
 
 
 class TestHelp:

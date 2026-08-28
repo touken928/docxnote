@@ -100,7 +100,14 @@ for c in paragraph.comments:
 
 - `path`：批注的可寻址路径，形如 `"t:0/r:0/c:0/p:0#3"`；可直接传回 `doc.resolve(...)`
 - `start` / `end`：基于 `paragraph.text` 的字符区间 `[start, end)`
-- `text` / `author` / `date`：批注正文、作者、`w:date`（UTC）
+- `text` / `author`：批注正文与作者
+- `date`：`datetime | None`；来自批注的 `w:date`（UTC）。源属性缺失、空白或非法时为 `None`。`keep_comments=True` 渲染时原样保留源 `w:date` 属性（缺失仍缺失，非法字符串原样保留）。
+
+批注按其 `commentRangeStart` 标记的 XML 文档顺序返回，嵌套批注外层在前。
+
+### 单段范围限制
+
+批注范围仅支持单一段落：`commentRangeStart` 与 `commentRangeEnd` 必须位于同一段落内。高层范围视图 —— `paragraph.comments`、`doc.comments()`、`doc.resolve("p:0#N")` —— 在文档中存在跨段落或未闭合的批注范围时会抛出 `UnsupportedCommentRangeError`（`ValueError` 子类，可从 `docxnote` 导入）。`DocxDocument.parse` 与 `doc.render()` 不受影响：这类 XML 会被原样透传，因此仍可以用 `keep_comments=False` 剥离、或用 `keep_comments=True` 原样保留，而不检查范围。
 
 ### text
 
@@ -125,7 +132,7 @@ paragraph.comment(
 )
 ```
 
-为段落文本范围添加批注。范围始终基于 `paragraph.text` 的字符区间，并遵循 Python 切片语义 `[start, end)`，包括负数和超出范围的端点；`end=None` 表示段落末尾。规范化后如果 end 早于 start，则变为锚定在规范化 start 的零长度范围。docxnote 会自动处理 Run 拆分与锚点放置，包括超链接等嵌套段落内容中的精确锚点。写入 `comments.xml` 的 `w:date` 为 UTC（`…Z`）。若传入不带时区的 `datetime`，按 UTC 解释。
+为段落文本范围添加批注。范围始终基于 `paragraph.text` 的字符区间，并遵循 Python 切片语义 `[start, end)`，包括负数和超出范围的端点；`end=None` 表示段落末尾。规范化后如果 end 早于 start，则变为锚定在规范化 start 的零长度范围。docxnote 会自动处理 Run 拆分与锚点放置，包括超链接等嵌套段落内容中的精确锚点。写入 `comments.xml` 的 `w:date` 为 UTC（`…Z`）。若传入不带时区的 `datetime`，按 UTC 解释。新建批注的 `date` 一定是具体的 `datetime` —— `date=None` 表示当前系统时间（带时区），不会是 `None`。
 
 `paragraph.comment(...)` 会返回新建的 `Comment` 对象，它的 `path` 可以直接回传给 `doc.resolve(...)`。
 
@@ -160,6 +167,8 @@ for c in comments:
 
 - `keep_comments=False`（默认）：仅暴露当前会话新增的批注，不暴露原始 DOCX 中旧批注。
 - `keep_comments=True`：既保留又暴露原有批注，并允许在其基础上继续添加新批注；渲染时会继续保留这些已有批注。
+
+若任一段落上存在跨段落或未闭合的批注范围，`doc.comments()` 会抛出 `UnsupportedCommentRangeError`。
 
 ---
 

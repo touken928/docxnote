@@ -12,6 +12,10 @@
     docxnote annotate input.docx output.docx \\
         --path "p:0" --text "Needs revision" --start 0 --end 5 --author reviewer
     docxnote annotate input.docx output.docx --spec ops.json
+
+所有失败统一向 stderr 输出一行 ``error: ...`` 并以退出码 2 结束，包括精确
+识别的非法输入（非 ZIP 归档的 ``zipfile.BadZipFile``、畸形 XML 的
+``lxml.etree.XMLSyntaxError``）。
 """
 
 from __future__ import annotations
@@ -22,8 +26,12 @@ import os
 import stat
 import sys
 import tempfile
+import zipfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Sequence
+
+from lxml import etree
 
 from . import Cell, Comment, DocxDocument, Paragraph, Table
 from .namespaces import NS
@@ -56,8 +64,17 @@ def _comment_to_dict(c: Comment) -> dict[str, Any]:
         "end": c.end,
         "text": c.text,
         "author": c.author,
-        "date": c.date.isoformat(),
+        "date": c.date.isoformat() if c.date is not None else None,
     }
+
+
+def _format_date_plain(date: datetime | str | None) -> str:
+    """把批注时间渲染为纯文本；缺失日期输出稳定的 ``unknown``。"""
+    if date is None:
+        return "unknown"
+    if isinstance(date, str):
+        return date
+    return date.isoformat()
 
 
 def _dump_json(payload: Any) -> None:
@@ -142,7 +159,7 @@ def _print_show_plain(payload: dict[str, Any]) -> None:
             for c in payload["comments"]:
                 print(
                     f"  - {c['path']}  [{c['start']}:{c['end']}]  "
-                    f"{c['author']}  {c['date']}"
+                    f"{c['author']}  {_format_date_plain(c['date'])}"
                 )
                 for line in (c["text"] or "").splitlines() or [""]:
                     print(f"    {line}")
@@ -161,7 +178,7 @@ def _print_show_plain(payload: dict[str, Any]) -> None:
         print(f"paragraph: {payload['paragraph']}")
         print(f"range: [{payload['start']}:{payload['end']}]")
         print(f"author: {payload['author']}")
-        print(f"date: {payload['date']}")
+        print(f"date: {_format_date_plain(payload['date'])}")
         print("text:")
         print(payload["text"])
 
@@ -454,6 +471,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return int(args.func(args) or 0)
     except FileNotFoundError as e:
         print(f"error: file not found: {e.filename or e}", file=sys.stderr)
+        return 2
+    except zipfile.BadZipFile as e:
+        print(f"error: invalid DOCX archive: {e}", file=sys.stderr)
+        return 2
+    except etree.XMLSyntaxError as e:
+        print(f"error: invalid DOCX XML: {e}", file=sys.stderr)
         return 2
     except (LookupError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)

@@ -10,6 +10,19 @@ if TYPE_CHECKING:
     from .paragraph import Paragraph
 
 
+class UnsupportedCommentRangeError(ValueError):
+    """批注范围超出单段范围视图的支持能力。
+
+    当批注的 ``commentRangeStart`` / ``commentRangeEnd`` 跨越段落边界，
+    或范围未闭合（缺少配对标记）时，访问高层范围视图
+    （``paragraph.comments``、``doc.comments()``、
+    ``doc.resolve("p:0#N")``）会抛出本异常。
+
+    解析（``DocxDocument.parse``）与渲染（``doc.render()``）不受影响：
+    这类 XML 会被原样透传。
+    """
+
+
 @dataclass(frozen=True)
 class Comment:
     """表示附着在段落上的批注视图。
@@ -22,7 +35,8 @@ class Comment:
         end: 在 ``paragraph.text`` 上的字符终点（不含），``[start, end)``
         text: 批注内容（纯文本，多段以换行符分隔）
         author: 批注作者
-        date: 批注时间（时区感知）
+        date: 批注时间（时区感知）；源 XML 的 ``w:date`` 缺失、空白或
+            非法时为 ``None``
     """
 
     paragraph: "Paragraph"
@@ -31,4 +45,4 @@ class Comment:
     end: int
     text: str
     author: str
-    date: datetime
+    date: datetime | None

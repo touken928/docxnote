@@ -130,6 +130,17 @@ Rule of thumb: if the user says "append", pass `--keep-comments` to
 
 - **Targeting a table, row or non-paragraph with `annotate`** → exits `2`.
   Only paragraph paths are writable (`p:N`, `t:.../p:M`).
+- **Comment dates can be missing**: a comment without a (valid) `w:date`
+  yields `"date": null` in JSON and `unknown` in plain-text views that display
+  the date. Don't assume `date` is always an ISO-8601 string when parsing JSON.
+- **Corrupt input files** — a file that is not a ZIP archive, or a DOCX whose
+  `word/document.xml` is not well-formed XML — fail with `error: …` on
+  stderr and exit `2`, exactly like other user errors (no traceback).
+- **Cross-paragraph comment ranges** (a comment anchored across several
+  paragraphs, or left unclosed) cannot be addressed per-paragraph: `show` /
+  `comments` exit `2` because the library raises
+  `UnsupportedCommentRangeError`, a `ValueError` subclass. Parsing and
+  re-rendering such a document (e.g. `annotate`) still works.
 - **Editing in place** isn't supported; pass two distinct files. If the
   caller wants in-place, they must overwrite `INPUT` themselves after a
   successful run.
