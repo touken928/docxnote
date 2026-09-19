@@ -92,6 +92,9 @@ with open("output.docx", "wb") as f:
 - [API_zh.md](API_zh.md) — 简体中文  
 - [API.md](API.md) — English  
 
+框架无关的 Agent shell 用法见 [AGENT.md](AGENT.md)。Pydantic AI 只是可选接入方式，
+不属于 docxnote 的依赖。
+
 当 `keep_comments=True` 时，原有批注会连同已有的批注 XML 元数据一起保留，并在其基础上追加新批注。
 
 ---
@@ -101,14 +104,6 @@ with open("output.docx", "wb") as f:
 所有测试文档使用 python-docx 动态生成，不依赖外部文件，详见 [tests/README.md](../tests/README.md)。
 
 ---
-
-## SKILL
-
-```
-npx skills add touken928/docxnote
-```
-
-[github.com/touken928/docxnote](https://github.com/touken928/docxnote) 根目录下的 [`skills/docxnote`](https://github.com/touken928/docxnote/tree/main/skills/docxnote) 文件夹提供供对话型 / coding Agent 使用的技能说明。
 
 ---
 

@@ -1,6 +1,6 @@
 ## Docxnote AGENTS 指南
 
-**目标**：保持实现简洁、可靠、可维护，并在代码、测试、README、`docs/` 与 `skills/docxnote/` 之间**同步功能、行为与用法说明**。
+**目标**：保持实现简洁、可靠、可维护，并在代码、测试、README 与 `docs/` 之间同步功能、行为与用法说明。
 
 ---
 
@@ -10,15 +10,12 @@
 - **`README.md`**（英文入口）/**`docs/README_zh.md`**（中文入口）：项目概览、安装、最小快速开始；**不要写冗长 API 细节**。
 - **`docs/`**：仓库内权威参考。
   - **`docs/API.md`** / **`docs/API_zh.md`**：完整 Python API、路径语义、批注行为、表格能力与高级用法。
-- **`skills/docxnote/SKILL.md`**：Agent 入口，只保留能力概述与文档索引，保持简短。
-- **`skills/docxnote/library-usage.md`**：面向 Agent 的 Python 使用指南（工作流、示例、推荐模式、常见误区、速查表），与 `docs/API*.md` 对齐。
 - **`tests/README.md`**：测试目录结构、覆盖范围与常用命令；当测试布局变化时一起更新。
 
 出现以下任一变化时，必须同步更新文档：
 
 - 公共 API 签名或返回值变化；
 - `keep_comments`、批注锚点、字符偏移、路径语义等行为变化；
-- `skills/docxnote/` 中的推荐工作流、示例或约束变化；
 - 测试目录结构或关键测试入口变化。
 
 公共 API 或行为变更时：
@@ -26,7 +23,6 @@
 - 更新实现与测试（至少覆盖相关目录）；
 - 同步更新 `README.md` 与 `docs/README_zh.md` 的简要说明；
 - 同步更新 **`docs/API.md`** 与 **`docs/API_zh.md`**（完整 Python API）；
-- 同步更新 `skills/docxnote/SKILL.md` 概述（若整体能力变化）、`skills/docxnote/library-usage.md`；
 - 测试布局或运行方式变化时，同步更新 `tests/README.md`。
 
 ---

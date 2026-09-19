@@ -92,6 +92,9 @@ Full Python API (methods, parameters, comments, paths, tables, and advanced patt
 - [docs/API_zh.md](docs/API_zh.md) — 简体中文  
 - [docs/README_zh.md](docs/README_zh.md) — 简体中文 overview (same scope as README)
 
+Framework-independent agent shell usage is documented in [docs/AGENT.md](docs/AGENT.md).
+Pydantic AI is one optional integration and is not a docxnote dependency.
+
 When `keep_comments=True`, existing comments are preserved and re-emitted with
 their existing comment XML metadata, while new comments are appended on top.
 
@@ -102,14 +105,6 @@ their existing comment XML metadata, while new comments are appended on top.
 Test documents are generated with python-docx; no checked-in DOCX fixtures. See [tests/README.md](tests/README.md).
 
 ---
-
-## SKILL
-
-```
-npx skills add touken928/docxnote
-```
-
-Agent-oriented docs live under [`skills/docxnote`](https://github.com/touken928/docxnote/tree/main/skills/docxnote).
 
 ---
 
