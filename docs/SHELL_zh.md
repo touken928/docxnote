@@ -14,8 +14,14 @@ pip install docxnote
 Pydantic AI 可以作为一种可选接入方式，但不属于 docxnote 的依赖。调用方自行
 安装 Pydantic AI 和模型供应商，再把 `shell.run` 注册为框架中的字符串命令工具。
 
+```bash
+pip install pydantic-ai
+```
+
 ```python
 from pathlib import Path
+
+from pydantic_ai import Agent
 
 from docxnote import DocxDocument, DocxShell
 
@@ -25,8 +31,8 @@ async def review(model):
         Path("input.docx").read_bytes(), keep_comments=True
     )
     shell = DocxShell(doc, author="reviewer")
-    # 将 shell.run 注册为框架提供的字符串命令工具。
-    result = await run_agent(model, tool=shell.run, prompt="审阅这份合同。")
+    agent = Agent(model, tools=[shell.run])
+    result = await agent.run("审阅这份合同。")
     Path("reviewed.docx").write_bytes(doc.render())
     return result.output
 ```

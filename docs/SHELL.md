@@ -16,8 +16,14 @@ Pydantic AI can be used as one optional integration, but it is not part of
 docxnote's dependencies. Applications install Pydantic AI and their chosen
 provider separately, then register `shell.run` in the framework's tool API.
 
+```bash
+pip install pydantic-ai
+```
+
 ```python
 from pathlib import Path
+
+from pydantic_ai import Agent
 
 from docxnote import DocxDocument, DocxShell
 
@@ -27,8 +33,8 @@ async def review(model):
         Path("input.docx").read_bytes(), keep_comments=True
     )
     shell = DocxShell(doc, author="reviewer")
-    # Register shell.run as the framework's one string-command tool.
-    result = await run_agent(model, tool=shell.run, prompt="Review this contract.")
+    agent = Agent(model, tools=[shell.run])
+    result = await agent.run("Review this contract.")
     Path("reviewed.docx").write_bytes(doc.render())
     return result.output
 ```

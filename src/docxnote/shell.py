@@ -69,16 +69,16 @@ class _CommandError(ValueError):
 
 class _Parser(argparse.ArgumentParser):
     def error(self, message: str) -> NoReturn:
-        raise _CommandError(f'{self.prog}: {message}')
+        raise _CommandError(f"{self.prog}: {message}")
 
 
 def _natural(value: str) -> int:
     try:
         number = int(value)
     except ValueError:
-        raise argparse.ArgumentTypeError('expected a nonnegative integer') from None
+        raise argparse.ArgumentTypeError("expected a nonnegative integer") from None
     if number < 0:
-        raise argparse.ArgumentTypeError('expected a nonnegative integer')
+        raise argparse.ArgumentTypeError("expected a nonnegative integer")
     return number
 
 
@@ -92,7 +92,7 @@ def _stages(command: str) -> list[list[str]]:
         if escaped:
             escaped = False
             continue
-        if char == '\\' and quote != "'":
+        if char == "\\" and quote != "'":
             escaped = True
             continue
         if quote:
@@ -101,67 +101,67 @@ def _stages(command: str) -> list[list[str]]:
             continue
         if char in "\"'":
             quote = char
-        elif char == '|':
+        elif char == "|":
             stages.append(shlex.split(command[start:index]))
             start = index + 1
-        elif char in ';&<>\n\r':
-            raise _CommandError('only pipes are supported; quote literal punctuation')
+        elif char in ";&<>\n\r":
+            raise _CommandError("only pipes are supported; quote literal punctuation")
     stages.append(shlex.split(command[start:]))
     if any(not stage for stage in stages):
-        raise _CommandError('expected a command on each side of a pipe')
+        raise _CommandError("expected a command on each side of a pipe")
     return stages
 
 
 def _parse(argv: list[str]) -> argparse.Namespace:
     name, *args = argv
     parser = _Parser(prog=name, add_help=False, allow_abbrev=False)
-    if name in ('docx', 'comments'):
-        parser.add_argument('path', nargs='?')
-        if name == 'docx':
-            parser.add_argument('--start', type=_natural)
-            parser.add_argument('--end', type=_natural)
-    elif name in ('head', 'tail'):
-        parser.add_argument('-n', type=_natural, default=10)
-    elif name == 'grep':
-        parser.add_argument('-F', action='store_true')
-        parser.add_argument('-i', action='store_true')
-        parser.add_argument('-v', action='store_true')
-        parser.add_argument('-n', action='store_true')
-        parser.add_argument('-e', action='append', default=[])
-        parser.add_argument('pattern', nargs='?')
-    elif name == 'comment':
-        parser.add_argument('path')
-        parser.add_argument('text')
-        parser.add_argument('--quote')
-        parser.add_argument('--start', type=_natural)
+    if name in ("docx", "comments"):
+        parser.add_argument("path", nargs="?")
+        if name == "docx":
+            parser.add_argument("--start", type=_natural)
+            parser.add_argument("--end", type=_natural)
+    elif name in ("head", "tail"):
+        parser.add_argument("-n", type=_natural, default=10)
+    elif name == "grep":
+        parser.add_argument("-F", action="store_true")
+        parser.add_argument("-i", action="store_true")
+        parser.add_argument("-v", action="store_true")
+        parser.add_argument("-n", action="store_true")
+        parser.add_argument("-e", action="append", default=[])
+        parser.add_argument("pattern", nargs="?")
+    elif name == "comment":
+        parser.add_argument("path")
+        parser.add_argument("text")
+        parser.add_argument("--quote")
+        parser.add_argument("--start", type=_natural)
     else:
-        raise _CommandError(f'unsupported command: {name}')
+        raise _CommandError(f"unsupported command: {name}")
     options = parser.parse_args(args)
     options.command = name
-    if name == 'grep':
+    if name == "grep":
         if options.pattern is not None and options.e:
-            raise _CommandError('grep: use a pattern or repeated -e patterns, not both')
+            raise _CommandError("grep: use a pattern or repeated -e patterns, not both")
         if options.pattern is None and not options.e:
-            raise _CommandError('grep: missing pattern')
+            raise _CommandError("grep: missing pattern")
         options.patterns = options.e or [options.pattern]
-    if name == 'comment':
+    if name == "comment":
         if not options.text.strip():
-            raise _CommandError('comment: text must not be blank')
-        if options.quote == '':
-            raise _CommandError('comment: quote must not be empty')
+            raise _CommandError("comment: text must not be blank")
+        if options.quote == "":
+            raise _CommandError("comment: quote must not be empty")
         if options.start is not None and options.quote is None:
-            raise _CommandError('comment: --start requires --quote')
+            raise _CommandError("comment: --start requires --quote")
     return options
 
 
 def _json(data: dict) -> str:
-    return json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+    return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
 @dataclass(frozen=True)
 class _Line:
     data: dict
-    prefix: str = ''
+    prefix: str = ""
 
     def render(self) -> str:
         return self.prefix + _json(self.data)
@@ -175,37 +175,39 @@ def _grep(lines: Iterable[_Line], options: argparse.Namespace) -> Iterator[_Line
             text = text.casefold()
         matched = any(pattern in text for pattern in patterns)
         if matched != options.v:
-            yield replace(line, prefix=f'{number}:{line.prefix}') if options.n else line
+            yield replace(line, prefix=f"{number}:{line.prefix}") if options.n else line
 
 
 def _comment_data(comment: Comment) -> dict:
     return {
-        'path': comment.path,
-        'target': comment.paragraph.path,
-        'start': comment.start,
-        'end': comment.end,
-        'text': comment.text,
-        'author': comment.author,
-        'date': comment.date.isoformat() if comment.date is not None else None,
+        "path": comment.path,
+        "target": comment.paragraph.path,
+        "start": comment.start,
+        "end": comment.end,
+        "text": comment.text,
+        "author": comment.author,
+        "date": comment.date.isoformat() if comment.date is not None else None,
     }
 
 
 def _preview(line: _Line, limit: int) -> str | None:
     """Fit the first oversized record without ever cutting serialized JSON."""
     data = line.data.copy()
-    text = data['text']
-    data['text_truncated'] = True
-    is_comment = 'target' in data
+    text = data["text"]
+    data["text_truncated"] = True
+    is_comment = "target" in data
     if is_comment:
-        data['text_length'] = len(text)
+        data["text_length"] = len(text)
     else:
-        data.setdefault('start', 0)
-        data.setdefault('total_chars', len(text))
+        data.setdefault("start", 0)
+        data.setdefault("total_chars", len(text))
+
     def render(length: int) -> str:
-        data['text'] = text[:length]
+        data["text"] = text[:length]
         if not is_comment:
-            data['end'] = data['start'] + length
+            data["end"] = data["start"] + length
         return line.prefix + _json(data)
+
     if len(render(0)) > limit:
         return None
     low, high = 0, len(text)
@@ -229,11 +231,15 @@ class DocxShell:
         self,
         doc: DocxDocument,
         *,
-        author: str = 'docxnote',
+        author: str = "docxnote",
         max_output: int = DEFAULT_MAX_OUTPUT,
     ) -> None:
-        if isinstance(max_output, bool) or not isinstance(max_output, int) or max_output < 256:
-            raise ValueError('max_output must be an integer of at least 256 characters')
+        if (
+            isinstance(max_output, bool)
+            or not isinstance(max_output, int)
+            or max_output < 256
+        ):
+            raise ValueError("max_output must be an integer of at least 256 characters")
         self._doc = doc
         self._author = author
         self._max_output = max_output
@@ -255,26 +261,34 @@ class DocxShell:
                     raise _CommandError(str(exc)) from exc
                 stages = [_parse(argv) for argv in argv_stages]
                 first, *filters = stages
-                if first.command not in ('docx', 'comments', 'comment'):
-                    raise _CommandError('pipeline must start with docx or comments')
-                if first.command == 'comment' and filters:
-                    raise _CommandError('comment must be a standalone command')
-                if any(stage.command not in ('grep', 'head', 'tail') for stage in filters):
-                    raise _CommandError('only grep, head and tail may follow a pipe')
-                if first.command == 'comment':
+                if first.command not in ("docx", "comments", "comment"):
+                    raise _CommandError("pipeline must start with docx or comments")
+                if first.command == "comment" and filters:
+                    raise _CommandError("comment must be a standalone command")
+                if any(
+                    stage.command not in ("grep", "head", "tail") for stage in filters
+                ):
+                    raise _CommandError("only grep, head and tail may follow a pipe")
+                if first.command == "comment":
                     lines: Iterable[_Line] = [self._comment(first)]
                 else:
                     lines = self._source(first)
                 for stage in filters:
-                    if stage.command == 'grep':
+                    if stage.command == "grep":
                         lines = _grep(lines, stage)
-                    elif stage.command == 'head':
+                    elif stage.command == "head":
                         lines = islice(lines, stage.n)
                     else:
                         lines = deque(lines, maxlen=stage.n) if stage.n else ()
                 return self._collect(lines)
             except _CommandError as exc:
-                return {'stdout': '', 'stderr': str(exc), 'exit_code': 2, 'records': 0, 'truncated': False}
+                return {
+                    "stdout": "",
+                    "stderr": str(exc),
+                    "exit_code": 2,
+                    "records": 0,
+                    "truncated": False,
+                }
 
     def _resolve(self, path: str):
         try:
@@ -289,26 +303,38 @@ class DocxShell:
         if isinstance(obj, Paragraph):
             return (obj,)
         if not isinstance(obj, (Table, Cell)):
-            raise _CommandError('expected a paragraph, table or cell path')
-        prefix = obj.path + '/'
+            raise _CommandError("expected a paragraph, table or cell path")
+        prefix = obj.path + "/"
         return (p for p in self._doc.iter_paragraphs() if p.path.startswith(prefix))
 
     def _source(self, options: argparse.Namespace) -> Iterable[_Line]:
         paragraphs = self._paragraphs(options.path)
-        if options.command == 'comments':
+        if options.command == "comments":
             return self._comments(paragraphs)
         sliced = options.start is not None or options.end is not None
         if sliced:
-            if options.path is None or not isinstance(self._resolve(options.path), Paragraph):
-                raise _CommandError('docx: character bounds require a paragraph path')
+            if options.path is None or not isinstance(
+                self._resolve(options.path), Paragraph
+            ):
+                raise _CommandError("docx: character bounds require a paragraph path")
             paragraph = next(iter(paragraphs))
             text = paragraph.text
             start = options.start if options.start is not None else 0
             end = options.end if options.end is not None else len(text)
             if not 0 <= start <= end <= len(text):
-                raise _CommandError(f'docx: expected 0 <= start <= end <= {len(text)}')
-            return [_Line({'path': paragraph.path, 'text': text[start:end], 'start': start, 'end': end, 'total_chars': len(text)})]
-        return (_Line({'path': p.path, 'text': p.text}) for p in paragraphs)
+                raise _CommandError(f"docx: expected 0 <= start <= end <= {len(text)}")
+            return [
+                _Line(
+                    {
+                        "path": paragraph.path,
+                        "text": text[start:end],
+                        "start": start,
+                        "end": end,
+                        "total_chars": len(text),
+                    }
+                )
+            ]
+        return (_Line({"path": p.path, "text": p.text}) for p in paragraphs)
 
     @staticmethod
     def _comments(paragraphs: Iterable[Paragraph]) -> Iterator[_Line]:
@@ -325,23 +351,27 @@ class DocxShell:
     def _comment(self, options: argparse.Namespace) -> _Line:
         paragraph = self._resolve(options.path)
         if not isinstance(paragraph, Paragraph):
-            raise _CommandError('comment: expected a paragraph path')
+            raise _CommandError("comment: expected a paragraph path")
         start, end = 0, len(paragraph.text)
         if options.quote is not None:
             quote = options.quote
             if options.start is None:
                 start = paragraph.text.find(quote)
                 if start < 0:
-                    raise _CommandError('comment: quote not found; read the original text again')
+                    raise _CommandError(
+                        "comment: quote not found; read the original text again"
+                    )
                 if paragraph.text.find(quote, start + 1) >= 0:
-                    raise _CommandError('comment: ambiguous quote; supply --start')
+                    raise _CommandError("comment: ambiguous quote; supply --start")
             else:
                 start = options.start
             end = start + len(quote)
             if paragraph.text[start:end] != quote:
-                raise _CommandError('comment: quote does not match at --start')
+                raise _CommandError("comment: quote does not match at --start")
         try:
-            comment = paragraph.comment(options.text, start=start, end=end, author=self._author)
+            comment = paragraph.comment(
+                options.text, start=start, end=end, author=self._author
+            )
         except ValueError as exc:
             raise _CommandError(str(exc)) from exc
         self._added_comments.append(comment)
@@ -364,11 +394,11 @@ class DocxShell:
             output.append(rendered)
             length += required
         return {
-            'stdout': '\n'.join(output),
-            'stderr': '',
-            'exit_code': 0,
-            'records': len(output),
-            'truncated': truncated,
+            "stdout": "\n".join(output),
+            "stderr": "",
+            "exit_code": 0,
+            "records": len(output),
+            "truncated": truncated,
         }
 
 
