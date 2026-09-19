@@ -1,6 +1,6 @@
 # Agent 工具
 
-`docxnote.agent` 提供框架无关、绑定一个内存 `DocxDocument` 的模拟 shell。
+`DocxShell` 提供框架无关、绑定一个内存 `DocxDocument` 的模拟 shell。
 它不创建 Agent、不选择模型、不执行系统 shell，也不保存文件。
 
 ## 安装与接入
@@ -17,8 +17,7 @@ Pydantic AI 可以作为一种可选接入方式，但不属于 docxnote 的依�
 ```python
 from pathlib import Path
 
-from docxnote import DocxDocument
-from docxnote.agent import DocxShell
+from docxnote import DocxDocument, DocxShell
 
 
 async def review(model):

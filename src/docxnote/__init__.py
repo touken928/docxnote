@@ -18,6 +18,7 @@ from .paragraph import Paragraph
 from .table import Table, Cell
 from .comments import Comment, UnsupportedCommentRangeError
 from .paths import build_segment, comment_path, join_path, parse_path
+from .shell import DEFAULT_MAX_OUTPUT, DOCX_SHELL_INSTRUCTIONS, DocxShell, ShellResult
 
 __all__ = [
     "DocxDocument",
@@ -30,4 +31,8 @@ __all__ = [
     "comment_path",
     "join_path",
     "parse_path",
+    "DocxShell",
+    "ShellResult",
+    "DEFAULT_MAX_OUTPUT",
+    "DOCX_SHELL_INSTRUCTIONS",
 ]

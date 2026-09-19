@@ -1,6 +1,6 @@
 # Agent tools
 
-`docxnote.agent` provides a framework-independent simulated shell over one
+`DocxShell` provides a framework-independent simulated shell over one
 in-memory `DocxDocument`. It does not create an Agent, choose a model, execute
 a host shell, or save files.
 
@@ -19,8 +19,7 @@ provider separately, then register `shell.run` in the framework's tool API.
 ```python
 from pathlib import Path
 
-from docxnote import DocxDocument
-from docxnote.agent import DocxShell
+from docxnote import DocxDocument, DocxShell
 
 
 async def review(model):
@@ -49,7 +48,7 @@ shell.added_comments -> tuple[Comment, ...]
 
 `doc`, author, and output budget are fixed for a session. `max_output` is an
 integer of at least 256, measured in Python string characters, not tokens or
-bytes. `DEFAULT_MAX_OUTPUT` is exported from `docxnote.agent`.
+bytes. `DEFAULT_MAX_OUTPUT` is exported from `docxnote`.
 `added_comments` returns an immutable snapshot of the actual `Comment` objects
 created through this session; existing or externally added comments are excluded.
 

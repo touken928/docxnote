@@ -15,6 +15,43 @@ from docxnote import Comment, DocxDocument, Paragraph, Table, Cell
 
 DEFAULT_MAX_OUTPUT = 4096
 
+DOCX_SHELL_INSTRUCTIONS = """Inspect and annotate the bound Word document with a restricted in-memory command language.
+
+The tool never executes a host shell, reads files, starts processes, expands variables, or saves documents.
+Use paths returned by `docx` or `comments`.
+
+Sources:
+  docx [PATH] [--start N] [--end N]
+  Without PATH, output all paragraphs as JSONL records in document order.
+  PATH may target a paragraph, table, or cell. Character bounds require a
+  paragraph and use strict zero-based [start, end) offsets.
+  Each record has `path` and `text`; sliced records also have `start`, `end`,
+  and `total_chars`. Empty paragraphs are included.
+
+Filters may follow a source with `|`:
+  grep [-F] [-i] [-v] [-n] PATTERN
+  head [-n N]
+  tail [-n N]
+Matching is literal, including without `-F`; `grep` searches serialized JSONL.
+Use repeated `-e PATTERN` for OR matching and multiple grep stages for AND.
+`head` and `tail` select records, not visual Word lines.
+
+Comments:
+  comment PATH TEXT [--quote QUOTE] [--start N]
+  comments [PATH]
+`comment` must run alone. Without `--quote`, it annotates the whole paragraph.
+With `--quote`, the quote must exactly match the original paragraph text; an
+ambiguous quote requires `--start`. Successful comments immediately modify the
+in-memory document and return the actual comment path and range. The caller
+must render and save the document.
+
+Results contain `stdout`, `stderr`, `exit_code`, `records`, and `truncated`.
+Output limits apply after filtering. A truncated first paragraph record has
+`text_truncated=true`, absolute `start`/`end`, and `total_chars`; continue with
+`docx PATH --start END --end N`. Do not treat truncated output as a complete
+document review. Expected command errors have exit code 2 and empty stdout.
+"""
+
 
 class ShellResult(TypedDict):
     """Output budget applies to stdout characters, not the result envelope."""
@@ -209,11 +246,7 @@ class DocxShell:
             return tuple(self._added_comments)
 
     def run(self, command: str) -> ShellResult:
-        """Execute a source plus filters, or one standalone comment command.
-
-        Expected input errors return exit_code=2 and empty stdout. Internal
-        exceptions propagate. Successful writes are not rolled back later.
-        """
+        """Execute the command language described by DOCX_SHELL_INSTRUCTIONS."""
         with self._doc._lock:
             try:
                 try:
@@ -337,3 +370,8 @@ class DocxShell:
             'records': len(output),
             'truncated': truncated,
         }
+
+
+# Keep the callable's framework-visible documentation and the exported
+# instructions byte-for-byte identical, so tool adapters cannot drift.
+DocxShell.run.__doc__ = DOCX_SHELL_INSTRUCTIONS

@@ -27,7 +27,7 @@ uv run pytest --cov=docxnote --cov-report=term-missing
 
 ## Test layout
 
-- **agent/**
+- **shell/**
   - **test_shell.py** - bounded document shell commands, filtering, paging, comments, and concurrency
 
 - **comments/**

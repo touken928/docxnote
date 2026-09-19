@@ -8,8 +8,12 @@ from io import BytesIO
 import pytest
 from docx import Document
 
-from docxnote import DocxDocument
-from docxnote.agent import DocxShell
+from docxnote import DOCX_SHELL_INSTRUCTIONS, DocxDocument, DocxShell
+
+
+def test_run_docstring_is_the_exported_tool_contract():
+    assert DocxShell.run.__doc__ == DOCX_SHELL_INSTRUCTIONS
+    assert 'docx [PATH]' in DocxShell.run.__doc__
 
 
 def make_doc(*texts):

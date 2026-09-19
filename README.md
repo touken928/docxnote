@@ -92,7 +92,7 @@ Full Python API (methods, parameters, comments, paths, tables, and advanced patt
 - [docs/API_zh.md](docs/API_zh.md) — 简体中文  
 - [docs/README_zh.md](docs/README_zh.md) — 简体中文 overview (same scope as README)
 
-Framework-independent agent shell usage is documented in [docs/AGENT.md](docs/AGENT.md).
+Framework-independent document shell usage is documented in [docs/SHELL.md](docs/SHELL.md).
 Pydantic AI is one optional integration and is not a docxnote dependency.
 
 When `keep_comments=True`, existing comments are preserved and re-emitted with
