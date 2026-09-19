@@ -50,7 +50,7 @@ shell.added_comments -> tuple[Comment, ...]
 ```
 
 文档、作者与输出预算在创建会话时确定。`max_output` 必须是至少 256 的整数，
-按 Python 字符数计量，不是字节数或 token 数。模块导出 `DEFAULT_MAX_OUTPUT`。
+按 Python 字符数计量，不是字节数或 token 数。默认输出上限为 4096 个字符。
 `added_comments` 返回本会话成功创建的真实 `Comment` 对象的不可变快照，
 不包含原有批注或其他调用方添加的批注。
 
