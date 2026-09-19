@@ -2,6 +2,9 @@
 
 Full interface and usage details for **docxnote**. For a minimal example, see the project [README](../README.md).
 
+Use the Python API to parse DOCX bytes, inspect or add comments, and render
+output bytes. Your application handles reading and writing files.
+
 ---
 
 ## DocxDocument

@@ -19,7 +19,7 @@
 
 ## 概览
 
-**docxnote** 用于自动化 **Word 批注**：遍历 `Paragraph` / `Table` / `Cell`，用 `paragraph.comment(...)` 添加批注，并可通过 `paragraph.comments` 与 `doc.comments()` 读取批注，而不需要手工处理 Run。
+**docxnote** 是用于自动化 **Word 批注** 的 Python 库：遍历 `Paragraph` / `Table` / `Cell`，用 `paragraph.comment(...)` 添加批注，并可通过 `paragraph.comments` 与 `doc.comments()` 读取批注，而不需要手工处理 Run。
 
 **仓库：** [touken928/docxnote](https://github.com/touken928/docxnote)
 
@@ -85,36 +85,12 @@ with open("output.docx", "wb") as f:
 
 ---
 
-## 命令行
-
-安装 `docxnote` 会注册同名命令。所有读命令支持 `--json`，所有写命令必须显式指定
-输出文件，全部子命令使用与库一致的可寻址路径（`p:0` / `t:0/r:1/c:2/p:0` / `p:0#3` …）。
-
-```
-docxnote list input.docx --text --json
-docxnote show input.docx "t:0/r:1/c:2/p:0"
-docxnote comments input.docx --json
-docxnote annotate input.docx output.docx --path p:0 --text "请修改"
-docxnote annotate input.docx output.docx --spec ops.json --keep-comments
-```
-
-完整说明：[CLI_zh.md](CLI_zh.md) · [CLI.md](CLI.md)。
-
-`annotate` 会拒绝包括符号链接和硬链接在内的输入/输出文件别名，并先写入同目录
-临时文件，再原子替换 `OUTPUT`。详见 [CLI 参考](CLI_zh.md)。
-
-`start` / `end` 始终基于 `paragraph.text` 的字符偏移，遵循 Python 切片语义
-`[start, end)`。docxnote 会自动处理 Run 拆分，包括超链接等嵌套段落内容中的精确锚点。
-
----
-
 ## 文档
 
 完整 Python API（方法、参数、批注、路径、表格与高级用法）：
 
 - [API_zh.md](API_zh.md) — 简体中文  
 - [API.md](API.md) — English  
-- [CLI_zh.md](CLI_zh.md) / [CLI.md](CLI.md) — CLI 参考  
 
 当 `keep_comments=True` 时，原有批注会连同已有的批注 XML 元数据一起保留，并在其基础上追加新批注。
 

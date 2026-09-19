@@ -3,7 +3,8 @@
 This guide is for coding agents that need to integrate `docxnote` into Python
  code. It focuses on practical workflows, safe patterns, and copyable examples.
 The authoritative API reference is `docs/API.md`; this file is the agent-facing
-playbook.
+playbook. Use the Python API for document workflows; the calling code handles
+file reads and writes.
 
 ---
 

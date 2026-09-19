@@ -57,9 +57,7 @@ class TestCommentDateOptional:
             assert comments[0].date is None, f"w:date={raw!r} should yield None"
 
     def test_invalid_w_date_returns_none(self):
-        doc = DocxDocument.parse(
-            _single_comment_docx("not-a-date"), keep_comments=True
-        )
+        doc = DocxDocument.parse(_single_comment_docx("not-a-date"), keep_comments=True)
         comments = _first_paragraph(doc).comments
 
         assert len(comments) == 1
@@ -101,9 +99,7 @@ class TestCommentDateOptional:
 
     def test_keep_comments_render_preserves_invalid_date_verbatim(self):
         """源 w:date 非法 → 渲染后原样保留该字符串。"""
-        doc = DocxDocument.parse(
-            _single_comment_docx("not-a-date"), keep_comments=True
-        )
+        doc = DocxDocument.parse(_single_comment_docx("not-a-date"), keep_comments=True)
         out = doc.render()
 
         assert _read_source_date_attr(out) == "not-a-date"

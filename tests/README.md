@@ -27,8 +27,6 @@ uv run pytest --cov=docxnote --cov-report=term-missing
 
 ## Test layout
 
-- **cli/**
-  - **test_cli.py** - CLI command behavior
 - **comments/**
   - **test_comment_writing.py** - comment creation and render behavior
   - **test_comment_reading.py** - comment reading, precise ranges, and `keep_comments`

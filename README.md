@@ -19,7 +19,7 @@
 
 ## Overview
 
-**docxnote** automates **Word comments** (annotations) without manual run editing: you traverse `Paragraph` / `Table` / `Cell`, call `paragraph.comment(...)`, and optionally read comments via `paragraph.comments` and `doc.comments()`.
+**docxnote** is a Python library that automates **Word comments** (annotations) without manual run editing: you traverse `Paragraph` / `Table` / `Cell`, call `paragraph.comment(...)`, and optionally read comments via `paragraph.comments` and `doc.comments()`.
 
 **Repository:** [touken928/docxnote](https://github.com/touken928/docxnote)
 
@@ -84,40 +84,12 @@ missing, blank, or invalid `w:date` reads as `None`. See the
 
 ---
 
-## CLI
-
-Installing `docxnote` adds a console script of the same name. Every read
-command supports `--json`, every write command takes an explicit output path,
-and they all share the library's addressable paths (`p:0`, `t:0/r:1/c:2/p:0`,
-`p:0#3`, ...).
-
-```
-docxnote list input.docx --text --json
-docxnote show input.docx "t:0/r:1/c:2/p:0"
-docxnote comments input.docx --json
-docxnote annotate input.docx output.docx --path p:0 --text "please revise"
-docxnote annotate input.docx output.docx --spec ops.json --keep-comments
-```
-
-Full reference: [docs/CLI.md](docs/CLI.md) · [docs/CLI_zh.md](docs/CLI_zh.md).
-
-`annotate` rejects input/output aliases, including symlinks and hard links, and
-writes through a temporary sibling file before atomically replacing `OUTPUT`.
-
-`start` / `end` always refer to character offsets inside `paragraph.text`
-using Python slice semantics (`[start, end)`). docxnote handles run splitting,
-including ranges that fall inside hyperlinks and other nested paragraph
-containers.
-
----
-
 ## Documentation
 
 Full Python API (methods, parameters, comments, paths, tables, and advanced patterns):
 
 - [docs/API.md](docs/API.md) — English  
 - [docs/API_zh.md](docs/API_zh.md) — 简体中文  
-- [docs/CLI.md](docs/CLI.md) / [docs/CLI_zh.md](docs/CLI_zh.md) — CLI reference  
 - [docs/README_zh.md](docs/README_zh.md) — 简体中文 overview (same scope as README)
 
 When `keep_comments=True`, existing comments are preserved and re-emitted with

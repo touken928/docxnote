@@ -2,6 +2,8 @@
 
 **docxnote** 的完整接口与用法说明。极简示例见 [README_zh.md](README_zh.md)。
 
+通过 Python API 解析 DOCX 字节、读取或添加批注，再渲染为输出字节；文件读写由调用方负责。
+
 ---
 
 ## DocxDocument

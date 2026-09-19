@@ -1,13 +1,12 @@
 ---
 name: docxnote
 description: >
-  Lightweight Python library and `docxnote` CLI for DOCX Word comments: parse
+  Lightweight Python library for DOCX Word comments: parse
   ZIP/XML, traverse paragraphs and tables through plain-text views, add and read
   comments by character range, handle merged and nested tables, and resolve
   stable address paths. Use when the user mentions docxnote, DOCX review
-  automation, or Word comments. Full Python API: docs/API.md. Full CLI
-  reference: docs/CLI.md. Agent-oriented usage: library-usage.md and
-  cli-usage.md.
+  automation, or Word comments. Full Python API: docs/API.md.
+  Agent-oriented usage: library-usage.md.
 ---
 
 # docxnote
@@ -30,8 +29,6 @@ description: >
   with the default `keep_comments=False`.
 - Use stable paths such as `paragraph.path` and `comment.path`, then resolve
   them later with `doc.resolve(path)`.
-- Use the `docxnote` CLI (`list`, `show`, `comments`, `annotate`) on the same
-  path system as the library.
 - Share one `DocxDocument` safely across threads through an internal re-entrant
   lock.
 
@@ -40,9 +37,7 @@ description: >
 | File | Purpose |
 |------|---------|
 | `docs/API.md` | Full Python API reference. |
-| `docs/CLI.md` | Full CLI reference. |
 | [`library-usage.md`](library-usage.md) | Agent-facing Python workflows, patterns, and examples. |
-| [`cli-usage.md`](cli-usage.md) | Agent-facing CLI workflows, pitfalls, and examples. |
 | `SKILL.md` | Short capability summary for fast agent loading. |
 
 ## When to use docxnote
