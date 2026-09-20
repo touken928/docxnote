@@ -1,7 +1,3 @@
-"""XML 命名空间定义"""
+"""Compatibility import for the shared XML namespace mapping."""
 
-NS = {
-    "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
-    "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
-    "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
-}
+from ._xml.namespaces import NS as NS

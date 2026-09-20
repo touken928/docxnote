@@ -11,7 +11,10 @@ from dataclasses import dataclass, replace
 from itertools import islice
 from typing import NoReturn, TypedDict
 
-from docxnote import Comment, DocxDocument, Paragraph, Table, Cell
+from .comments import Comment, UnsupportedCommentRangeError
+from .document import DocxDocument
+from .paragraph import Paragraph
+from .table import Cell, Table
 
 DEFAULT_MAX_OUTPUT = 4096
 
@@ -72,7 +75,7 @@ class _Parser(argparse.ArgumentParser):
         raise _CommandError(f"{self.prog}: {message}")
 
 
-def _natural(value: str) -> int:
+def _parse_nonnegative_int(value: str) -> int:
     try:
         number = int(value)
     except ValueError:
@@ -82,7 +85,7 @@ def _natural(value: str) -> int:
     return number
 
 
-def _stages(command: str) -> list[list[str]]:
+def _split_pipeline(command: str) -> list[list[str]]:
     """Split unquoted pipes, leaving quote/escape handling to shlex."""
     stages: list[list[str]] = []
     start = 0
@@ -112,16 +115,16 @@ def _stages(command: str) -> list[list[str]]:
     return stages
 
 
-def _parse(argv: list[str]) -> argparse.Namespace:
+def _parse_command(argv: list[str]) -> argparse.Namespace:
     name, *args = argv
     parser = _Parser(prog=name, add_help=False, allow_abbrev=False)
     if name in ("docx", "comments"):
         parser.add_argument("path", nargs="?")
         if name == "docx":
-            parser.add_argument("--start", type=_natural)
-            parser.add_argument("--end", type=_natural)
+            parser.add_argument("--start", type=_parse_nonnegative_int)
+            parser.add_argument("--end", type=_parse_nonnegative_int)
     elif name in ("head", "tail"):
-        parser.add_argument("-n", type=_natural, default=10)
+        parser.add_argument("-n", type=_parse_nonnegative_int, default=10)
     elif name == "grep":
         parser.add_argument("-F", action="store_true")
         parser.add_argument("-i", action="store_true")
@@ -133,7 +136,7 @@ def _parse(argv: list[str]) -> argparse.Namespace:
         parser.add_argument("path")
         parser.add_argument("text")
         parser.add_argument("--quote")
-        parser.add_argument("--start", type=_natural)
+        parser.add_argument("--start", type=_parse_nonnegative_int)
     else:
         raise _CommandError(f"unsupported command: {name}")
     options = parser.parse_args(args)
@@ -154,7 +157,7 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     return options
 
 
-def _json(data: dict) -> str:
+def _serialize_json(data: dict) -> str:
     return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
 
@@ -164,7 +167,7 @@ class _Line:
     prefix: str = ""
 
     def render(self) -> str:
-        return self.prefix + _json(self.data)
+        return self.prefix + _serialize_json(self.data)
 
 
 def _grep(lines: Iterable[_Line], options: argparse.Namespace) -> Iterator[_Line]:
@@ -206,7 +209,7 @@ def _preview(line: _Line, limit: int) -> str | None:
         data["text"] = text[:length]
         if not is_comment:
             data["end"] = data["start"] + length
-        return line.prefix + _json(data)
+        return line.prefix + _serialize_json(data)
 
     if len(render(0)) > limit:
         return None
@@ -248,18 +251,18 @@ class DocxShell:
     @property
     def added_comments(self) -> tuple[Comment, ...]:
         """Snapshot of comments successfully added through this session."""
-        with self._doc._lock:
+        with self._doc._state.lock:
             return tuple(self._added_comments)
 
     def run(self, command: str) -> ShellResult:
         """Execute the command language described by DOCX_SHELL_INSTRUCTIONS."""
-        with self._doc._lock:
+        with self._doc._state.lock:
             try:
                 try:
-                    argv_stages = _stages(command)
+                    argv_stages = _split_pipeline(command)
                 except ValueError as exc:
                     raise _CommandError(str(exc)) from exc
-                stages = [_parse(argv) for argv in argv_stages]
+                stages = [_parse_command(argv) for argv in argv_stages]
                 first, *filters = stages
                 if first.command not in ("docx", "comments", "comment"):
                     raise _CommandError("pipeline must start with docx or comments")
@@ -290,7 +293,7 @@ class DocxShell:
                     "truncated": False,
                 }
 
-    def _resolve(self, path: str):
+    def _resolve(self, path: str) -> Paragraph | Table | Cell | Comment:
         try:
             return self._doc.resolve(path)
         except (ValueError, LookupError) as exc:
@@ -338,8 +341,6 @@ class DocxShell:
 
     @staticmethod
     def _comments(paragraphs: Iterable[Paragraph]) -> Iterator[_Line]:
-        from docxnote import UnsupportedCommentRangeError
-
         for paragraph in paragraphs:
             try:
                 comments = paragraph.comments

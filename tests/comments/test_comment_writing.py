@@ -26,11 +26,11 @@ class TestComments:
                 break
 
         # 验证批注被添加
-        assert len(doc._comments) == 1
+        assert len(doc.comments()) == 1
 
-        comment_id, text, author, _date = doc._comments[0]
-        assert text == "测试批注"
-        assert author == "tester"
+        comment = doc.comments()[0]
+        assert comment.text == "测试批注"
+        assert comment.author == "tester"
 
     def test_add_multiple_comments(self, simple_doc):
         """测试添加多个批注"""
@@ -45,7 +45,7 @@ class TestComments:
                 if count >= 3:
                     break
 
-        assert len(doc._comments) >= 3
+        assert len(doc.comments()) >= 3
 
     def test_comment_on_table_cell(self, table_doc):
         """测试为表格单元格添加批注"""
@@ -83,7 +83,7 @@ class TestComments:
                 block.comment("中间部分", start=5, end=10, author="tester2")
                 break
 
-        assert len(doc._comments) >= 2
+        assert len(doc.comments()) >= 2
 
     def test_comment_full_paragraph(self, simple_doc):
         """测试为整个段落添加批注"""
@@ -108,8 +108,7 @@ class TestComments:
                 break
 
         # 验证使用了默认作者
-        comment_id, text, author, _date = doc._comments[0]
-        assert author == "docxnote"
+        assert doc.comments()[0].author == "docxnote"
 
     def test_comment_custom_date_in_comments_xml(self, simple_doc):
         """自定义批注时间写入 comments.xml 的 w:date"""

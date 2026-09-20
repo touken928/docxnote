@@ -1,7 +1,7 @@
-"""Lightweight Python library for reading, editing, and annotating DOCX files.
+"""Read paragraph text and add comments to existing DOCX files.
 
 Public API:
-    DocxDocument: Open, create, modify, and save documents.
+    DocxDocument: Parse bytes, navigate document views, and render DOCX bytes.
     Paragraph, Table, Cell: Access document content and structure.
     Comment: Represent document comments.
     UnsupportedCommentRangeError: Raised by comment range views when a

@@ -114,6 +114,9 @@ Returns new DOCX as `bytes`. Comments are written during this step.
 
 A single `DocxDocument` instance is safe to use from multiple threads (internally serialized with a reentrant lock). Use separate instances for parallel work across threads. For multiple processes, call `parse` in each process.
 
+All views and Shell sessions for a document share that lock. Iterators release it
+before yielding wrappers to the caller.
+
 ## Paragraph
 
 Represents a Word paragraph.

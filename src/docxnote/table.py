@@ -1,250 +1,86 @@
-"""表格和单元格处理"""
+"""Public table and cell views over logical Word table coordinates."""
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from lxml import etree
-from .namespaces import NS
+
+from ._navigation import collect_blocks
+from ._state import DocumentOwner
+from ._xml.tables import CellRegion, parse_table_grid
 from .paths import build_segment, join_path
-from ._blocks import iter_block_elements
+
+if TYPE_CHECKING:
+    from .paragraph import Paragraph
 
 
 class Table:
-    """表示 Word 表格"""
+    """A table whose merged coordinates refer to their origin Cell."""
 
-    def __init__(self, element, document, path: str = ""):
-        self._element = element
-        self._document = document
+    def __init__(
+        self, element: etree._Element, document: DocumentOwner, path: str = ""
+    ) -> None:
+        self._state = document._state
         self._path = path
-        self._grid = None
-        self._build_grid()
+        with self._state.lock:
+            regions = parse_table_grid(element)
+            cells: dict[CellRegion, Cell] = {}
+            matrix: list[tuple[Cell, ...]] = []
+            for row in regions:
+                row_cells: list[Cell] = []
+                for region in row:
+                    if region not in cells:
+                        cell = Cell(
+                            region.element,
+                            self,
+                            region.row,
+                            region.col,
+                            region.colspan,
+                            path=join_path(
+                                path,
+                                build_segment("r", region.row),
+                                build_segment("c", region.col),
+                            ),
+                        )
+                        cell._rowspan = region.rowspan
+                        cells[region] = cell
+                    row_cells.append(cells[region])
+                matrix.append(tuple(row_cells))
+            self._matrix = tuple(matrix)
 
     @property
     def path(self) -> str:
-        """表格的可寻址路径（例如 ``"t:0"`` 或 ``"t:0/r:1/c:2/t:0"``）。"""
+        """The address of this table, such as ``t:0/r:1/c:2/t:0``."""
         return self._path
 
-    def _build_grid(self):
-        """构建表格网格，处理合并单元格"""
-        # 只查找直接子行，不包括嵌套表格的行
-        rows = self._element.findall("./w:tr", NS)
-        if not rows:
-            self._grid = []
-            return
-
-        # The tblGrid defines logical coordinates, while gridBefore/gridAfter
-        # omit coordinates from individual rows.
-        tbl_grid = self._element.find("./w:tblGrid", NS)
-        grid_width = (
-            len(tbl_grid.findall("./w:gridCol", NS)) if tbl_grid is not None else None
-        )
-        row_specs: list[tuple[int, int, int]] = []
-        fallback_width = 0
-        for row in rows:
-            row_pr = row.find("./w:trPr", NS)
-            before = 0
-            after = 0
-            if row_pr is not None:
-                grid_before = row_pr.find("./w:gridBefore", NS)
-                grid_after = row_pr.find("./w:gridAfter", NS)
-                if grid_before is not None and grid_before.get(f"{{{NS['w']}}}val"):
-                    before = int(grid_before.get(f"{{{NS['w']}}}val"))
-                if grid_after is not None and grid_after.get(f"{{{NS['w']}}}val"):
-                    after = int(grid_after.get(f"{{{NS['w']}}}val"))
-
-            extent = before
-            for tc in row.findall("./w:tc", NS):
-                colspan = 1
-                tc_pr = tc.find("./w:tcPr", NS)
-                if tc_pr is not None:
-                    gridspan = tc_pr.find("./w:gridSpan", NS)
-                    if gridspan is not None and gridspan.get(f"{{{NS['w']}}}val"):
-                        colspan = int(gridspan.get(f"{{{NS['w']}}}val"))
-                extent += colspan
-            row_specs.append((before, after, extent))
-            fallback_width = max(fallback_width, extent + after)
-
-        max_cols = grid_width if grid_width is not None else fallback_width
-
-        # 构建一个“展开到坐标”的网格：同一合并区域的所有坐标都指向起始 Cell
-        self._grid = []
-        row_maps: list[dict[int, Cell]] = []
-        active_vmerge: dict[
-            int, Cell
-        ] = {}  # col -> origin cell (for current/next rows)
-        for r_idx, row in enumerate(rows):
-            # 只查找直接子单元格
-            tcs = row.findall("./w:tc", NS)
-
-            before, after, _ = row_specs[r_idx]
-            row_map: dict[int, Cell] = {}
-            col_idx = before
-            row_end = max_cols - after
-            # A merge cannot continue through coordinates omitted by this row.
-            active_vmerge = {
-                c: origin
-                for c, origin in active_vmerge.items()
-                if before <= c < row_end
-            }
-
-            for tc in tcs:
-                colspan = 1
-                vmerge_val: str | None = None
-
-                tc_pr = tc.find("./w:tcPr", NS)
-                if tc_pr is not None:
-                    gridspan = tc_pr.find("./w:gridSpan", NS)
-                    if gridspan is not None:
-                        val = gridspan.get(f"{{{NS['w']}}}val")
-                        if val:
-                            colspan = int(val)
-
-                    vmerge = tc_pr.find("./w:vMerge", NS)
-                    if vmerge is not None:
-                        vmerge_val = vmerge.get(f"{{{NS['w']}}}val")
-
-                is_vmerge_continue = vmerge_val is None and (
-                    tc_pr is not None and tc_pr.find("./w:vMerge", NS) is not None
-                )
-                if vmerge_val is not None:
-                    is_vmerge_continue = vmerge_val != "restart"
-
-                # Continuation cells occupy the active merge lane. Only lanes
-                # already emitted in this row need to be skipped.
-                while col_idx in row_map:
-                    col_idx += 1
-
-                if is_vmerge_continue:
-                    origin = active_vmerge.get(col_idx)
-                    if origin is None:
-                        origin = Cell(
-                            tc,
-                            self._document,
-                            r_idx,
-                            col_idx,
-                            colspan,
-                            path=self._cell_path(r_idx, col_idx),
-                        )
-                    else:
-                        origin._grow_rowspan_to(r_idx + 1)
-                else:
-                    origin = Cell(
-                        tc,
-                        self._document,
-                        r_idx,
-                        col_idx,
-                        colspan,
-                        path=self._cell_path(r_idx, col_idx),
-                    )
-                    # 新单元格覆盖同列：意味着上方 vMerge 在该列结束
-                    for i in range(colspan):
-                        active_vmerge.pop(col_idx + i, None)
-
-                    # 如果当前单元格是 vMerge restart，则开启纵向合并跟踪
-                    if vmerge_val == "restart" or (
-                        tc_pr is not None
-                        and tc_pr.find("./w:vMerge", NS) is not None
-                        and vmerge_val == "restart"
-                    ):
-                        for i in range(colspan):
-                            active_vmerge[col_idx + i] = origin
-
-                for i in range(colspan):
-                    row_map[col_idx + i] = origin
-
-                col_idx += colspan
-
-            # 将本行未显式出现但仍在 vMerge 中的列补齐；省略的首尾坐标不属于本行。
-            for c, origin in active_vmerge.items():
-                if before <= c < row_end and c not in row_map:
-                    origin._grow_rowspan_to(r_idx + 1)
-                    row_map[c] = origin
-
-            if row_map:
-                # tblGrid is authoritative. Valid documents cannot place a cell
-                # beyond it; retaining the max also keeps malformed fallback rows
-                # addressable without changing the declared grid width.
-                if grid_width is None:
-                    max_cols = max(max_cols, max(row_map.keys()) + 1)
-            row_maps.append(row_map)
-
-        # 生成最终 grid：每行是“实际出现过的 Cell（去重）”列表（用于 bounds/shape 辅助）
-        for r_idx, row_map in enumerate(row_maps):
-            seen: set[int] = set()
-            grid_row: list[Cell] = []
-            for c in range(max_cols):
-                cell = row_map.get(c)
-                if cell is None:
-                    continue
-                if id(cell) in seen:
-                    continue
-                seen.add(id(cell))
-                grid_row.append(cell)
-            self._grid.append(grid_row)
-
-        # 另外保存一个坐标展开矩阵，供 __getitem__ 精确返回合并起点单元格
-        self._matrix: list[list[Cell]] = []
-        for r_idx, row_map in enumerate(row_maps):
-            matrix_row: list[Cell] = []
-            for c in range(max_cols):
-                matrix_row.append(
-                    row_map.get(c)
-                    or Cell(
-                        None,
-                        self._document,
-                        r_idx,
-                        c,
-                        1,
-                        path=self._cell_path(r_idx, c),
-                    )
-                )
-            self._matrix.append(matrix_row)
-
-    def _cell_path(self, row: int, col: int) -> str:
-        """根据本表格路径计算单元格路径（以单元格原点坐标为准）。"""
-        return join_path(self._path, build_segment("r", row), build_segment("c", col))
-
     def shape(self) -> tuple[int, int]:
-        """返回表格尺寸 (rows, cols)"""
-        if not self._grid:
-            return (0, 0)
-        rows = len(self._grid)
-        cols = (
-            len(getattr(self, "_matrix", [[]])[0])
-            if getattr(self, "_matrix", None)
-            else 0
-        )
-        return (rows, cols)
+        """Return the logical (rows, columns), including omitted cell lanes."""
+        return len(self._matrix), len(self._matrix[0]) if self._matrix else 0
 
-    def __getitem__(self, key: tuple[int, int]) -> "Cell":
-        """返回 Cell 对象"""
+    def __getitem__(self, key: tuple[int, int]) -> Cell:
         row, col = key
-        matrix = getattr(self, "_matrix", None)
-        if matrix is None:
-            raise IndexError(
-                f"cell ({row}, {col}) out of bounds for table {self.shape()}: "
-                "no matrix built"
-            )
-        if not (0 <= row < len(matrix) and 0 <= col < len(matrix[row])):
+        if not (0 <= row < len(self._matrix) and 0 <= col < len(self._matrix[row])):
             raise IndexError(
                 f"cell ({row}, {col}) out of bounds for table {self.shape()}"
             )
-        return matrix[row][col]
+        return self._matrix[row][col]
 
 
 class Cell:
-    """表示表格单元格"""
+    """A merge-origin cell, or a synthetic empty cell for an omitted coordinate."""
 
     def __init__(
         self,
-        element,
-        document,
+        element: etree._Element | None,
+        document: DocumentOwner,
         row: int,
         col: int,
         colspan: int = 1,
         path: str = "",
-    ):
+    ) -> None:
         self._element = element
-        self._document = document
+        self._state = document._state
         self._row = row
         self._col = col
         self._colspan = colspan
@@ -253,41 +89,18 @@ class Cell:
 
     @property
     def path(self) -> str:
-        """单元格的可寻址路径，基于合并原点坐标（例如 ``"t:0/r:1/c:2"``）。"""
+        """The address of the merge origin, such as ``t:0/r:1/c:2``."""
         return self._path
 
-    def _grow_rowspan_to(self, bottom_exclusive: int) -> None:
-        """将 rowspan 扩展到指定 bottom（左闭右开）"""
-        self._rowspan = max(self._rowspan, bottom_exclusive - self._row)
-
-    def blocks(self) -> tuple:
-        """返回单元格中的块级元素（元组）"""
-        with self._document._lock:
-            if self._element is None:
-                return ()
-
-            from .paragraph import Paragraph
-
-            blocks: list = []
-            para_idx = 0
-            table_idx = 0
-            for child in iter_block_elements(self._element):
-                tag = etree.QName(child.tag).localname
-                if tag == "p":
-                    child_path = join_path(self._path, build_segment("p", para_idx))
-                    blocks.append(Paragraph(child, self._document, path=child_path))
-                    para_idx += 1
-                elif tag == "tbl":
-                    child_path = join_path(self._path, build_segment("t", table_idx))
-                    blocks.append(Table(child, self._document, path=child_path))
-                    table_idx += 1
-            return tuple(blocks)
+    def blocks(self) -> tuple[Paragraph | Table, ...]:
+        """Return this cell's paragraphs and tables in document order."""
+        with self._state.lock:
+            return collect_blocks(self._element, self, self._path)
 
     def bounds(self) -> tuple[int, int, int, int]:
-        """返回单元格边界 (top, left, bottom, right)"""
+        """Return half-open (top, left, bottom, right) logical coordinates."""
         if self._element is None:
-            return (self._row, self._col, self._row + 1, self._col + 1)
-
+            return self._row, self._col, self._row + 1, self._col + 1
         return (
             self._row,
             self._col,
