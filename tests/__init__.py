@@ -1,1 +1,1 @@
-"""docxnote 测试套件"""
+"""Behavior tests for docxnote."""

@@ -1,6 +1,5 @@
 """Block content controls are transparent to paths and document traversal."""
 
-from io import BytesIO
 import json
 
 from docx import Document
@@ -9,6 +8,7 @@ import pytest
 
 from docxnote import DocxDocument, DocxShell, Paragraph
 from docxnote.namespaces import NS
+from tests.support.docx import save_docx
 
 
 def _wrap(element):
@@ -42,9 +42,7 @@ def test_nested_content_controls_expose_paragraphs_and_tables(in_cell):
         assert parent is not None
         parent.remove(empty)
     container.add_paragraph("outside")
-    buffer = BytesIO()
-    source.save(buffer)
-    doc = DocxDocument.parse(buffer.getvalue())
+    doc = DocxDocument.parse(save_docx(source))
     prefix = "t:0/r:0/c:0/" if in_cell else ""
     expected = [
         (prefix + "p:0", "inside"),

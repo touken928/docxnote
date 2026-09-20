@@ -1,1 +1,1 @@
-"""Table traversal and shape tests."""
+"""Table behavior tests."""

@@ -1,1 +1,1 @@
-"""Paragraph and text extraction tests."""
+"""Text behavior tests."""

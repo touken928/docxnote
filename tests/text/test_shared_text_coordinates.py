@@ -1,13 +1,11 @@
 """All views keep host text coordinates through repeated run splitting."""
 
-from io import BytesIO
-import zipfile
-
 from docx import Document
 from lxml import etree
 
 from docxnote import DocxDocument, Paragraph
 from docxnote.namespaces import NS
+from tests.support.docx import save_docx, xml_part
 
 
 W = "{" + NS["w"] + "}"
@@ -35,9 +33,7 @@ def test_repeated_splits_share_coordinates_across_wrappers_and_preserve_run_cont
     etree.SubElement(inner_run, W + "t").text = "EXCLUDED"
     etree.SubElement(run, W + "t").text = "CD"
     paragraph.add_run("Z")
-    buffer = BytesIO()
-    source.save(buffer)
-    document = DocxDocument.parse(buffer.getvalue())
+    document = DocxDocument.parse(save_docx(source))
     first = document.resolve("p:0")
     second = document.resolve("p:0")
     assert isinstance(first, Paragraph) and isinstance(second, Paragraph)
@@ -62,11 +58,10 @@ def test_repeated_splits_share_coordinates_across_wrappers_and_preserve_run_cont
     assert {
         comment.path: (comment.start, comment.end) for comment in reopened.comments()
     } == expected_ranges
-    with zipfile.ZipFile(BytesIO(rendered)) as archive:
-        root = etree.fromstring(archive.read("word/document.xml"))
-        assert len(root.findall(".//w:drawing", NS)) == 1
-        box_text = root.find(".//w:txbxContent/w:p/w:r/w:t", NS)
-        assert box_text is not None and box_text.text == "EXCLUDED"
-        for run in root.findall(".//w:hyperlink/w:r", NS):
-            if run.find("./w:t", NS) is not None:
-                assert run.find("./w:rPr/w:b", NS) is not None
+    root = xml_part(rendered)
+    assert len(root.findall(".//w:drawing", NS)) == 1
+    box_text = root.find(".//w:txbxContent/w:p/w:r/w:t", NS)
+    assert box_text is not None and box_text.text == "EXCLUDED"
+    for run in root.findall(".//w:hyperlink/w:r", NS):
+        if run.find("./w:t", NS) is not None:
+            assert run.find("./w:rPr/w:b", NS) is not None

@@ -9,7 +9,7 @@ import pytest
 
 from docxnote import DocxDocument, Paragraph
 from docxnote.namespaces import NS
-from tests.comments._helpers import build_docx
+from tests.support.docx import build_docx
 
 
 FIXED_DATE = datetime(2020, 6, 15, 12, 30, tzinfo=timezone.utc)

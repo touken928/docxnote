@@ -1,0 +1,1 @@
+"""DOCX package preservation tests."""

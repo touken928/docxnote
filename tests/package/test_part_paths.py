@@ -9,7 +9,8 @@ from lxml import etree
 
 from docxnote import DocxDocument, Paragraph
 from docxnote.namespaces import NS
-from tests.comments._helpers import build_docx, COMMENTS_REL_TYPE
+from tests.support.docx import build_docx, read_parts, write_parts
+from tests.support.comments import COMMENTS_REL_TYPE
 
 
 def _relocated_comments(target, part):
@@ -17,8 +18,7 @@ def _relocated_comments(target, part):
     paragraph = doc.resolve("p:0")
     assert isinstance(paragraph, Paragraph)
     paragraph.comment("original", 0, 3)
-    with zipfile.ZipFile(BytesIO(doc.render())) as archive:
-        parts = {name: archive.read(name) for name in archive.namelist()}
+    parts = read_parts(doc.render())
     comments = etree.fromstring(parts.pop("word/comments.xml"))
     paragraph = comments.find("./w:comment/w:p", NS)
     assert paragraph is not None
@@ -43,11 +43,7 @@ def _relocated_comments(target, part):
         b'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" '
         b'Target="https://example.com" TargetMode="External"/></Relationships>'
     )
-    out = BytesIO()
-    with zipfile.ZipFile(out, "w") as archive:
-        for name, value in parts.items():
-            archive.writestr(name, value)
-    return out.getvalue(), rels_part, parts[rels_part], original_rel
+    return write_parts(parts), rels_part, parts[rels_part], original_rel
 
 
 @pytest.mark.parametrize(

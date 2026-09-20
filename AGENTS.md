@@ -3,7 +3,7 @@
 ## Project Structure & Module Organization
 
 - `src/docxnote/`: document/package handling, paragraphs, tables, comments, paths, and the in-memory shell.
-- `tests/`: pytest suites grouped into `comments/`, `document/`, `tables/`, `text/`, `xml/`, and `shell/`. Shared fixtures live in `conftest.py`; DOCX inputs are generated with `python-docx`, not stored as assets.
+- `tests/`: pytest suites grouped by behavior into `comments/`, `document/`, `package/`, `shell/`, `tables/`, and `text/`. Shared generators live in `tests/support/`; DOCX inputs are generated with `python-docx`, not stored as assets.
 - `docs/`: authoritative English/Chinese API and Shell references. README files provide installation and minimal examples.
 
 ## Build, Test, and Development Commands
@@ -13,7 +13,7 @@ Use Python 3.12+ and `uv`; keep `pyproject.toml` and `uv.lock` synchronized.
 ```bash
 uv sync --dev                           # Install development dependencies
 uv run pre-commit install               # Enable commit hooks
-uv run pytest tests/comments/ -q        # Run an affected domain
+uv run pytest tests/comments/ -q        # Run an affected behavior domain
 uv run pytest                          # Run the complete suite
 uv run pre-commit run --all-files       # Check lockfile, Ruff, ty, and tests
 uv run pytest --cov=docxnote --cov-report=term-missing
@@ -70,11 +70,11 @@ Use English source docstrings and comments. Explain contracts and reasons for no
 
 ## Testing Guidelines
 
-Name files `test_*.py` and functions `test_*`. Place tests in the closest domain, not the test root. New features and behavior changes require coverage; reproduce bugs with failing regression tests before fixing them.
+Name files `test_*.py` and functions `test_*`. Place new tests in the closest behavior domain, not the test root. Keep reusable DOCX and ZIP builders in `tests/support/`, never in an individual suite. New features and behavior changes require coverage; reproduce bugs with failing regression tests before fixing them.
 
 Prioritize partial ranges, hyperlinks, content controls, text boxes, merged/nested tables, and comment preservation/stripping. Verify render/reparse behavior and package relationships/content types where relevant. See `tests/README.md` for coverage and commands.
 
-Verify compatibility through public views and rendered/reparsed packages rather than private storage layouts. Include unanchored ID allocation, shared coordinates across wrappers, and concurrent operations when changing state ownership or XML algorithms.
+Verify compatibility through public views and rendered/reparsed packages rather than private storage layouts. Include unanchored ID allocation, shared coordinates across wrappers, and concurrent operations when changing state ownership or XML algorithms. Keep package relationship/content-type checks under `tests/package/`; keep XML text and anchor behavior under `tests/text/` and `tests/comments/`.
 
 ## Documentation Maintenance
 

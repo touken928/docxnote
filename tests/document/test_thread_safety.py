@@ -1,100 +1,78 @@
-"""同一 DocxDocument 在多线程下的串行化访问"""
+"""Shared locks protect writes, rendered snapshots, and paused iterators."""
 
+from concurrent.futures import ThreadPoolExecutor
 import threading
-import zipfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from io import BytesIO
 
-from lxml import etree
+import pytest
 
-from docxnote import DocxDocument, Paragraph
-from docxnote.namespaces import NS
+from docxnote import DocxDocument
+from tests.support.docx import build_docx
 
 
-def _comment_count_in_output(docx_bytes: bytes) -> int:
-    with zipfile.ZipFile(BytesIO(docx_bytes)) as z:
-        root = etree.fromstring(z.read("word/comments.xml"))
-    return len(root.findall(f"{{{NS['w']}}}comment"))
+@pytest.fixture
+def document():
+    return DocxDocument.parse(build_docx(["ABCDEFGHIJ", "Second paragraph"]))
 
 
-def test_concurrent_comments_same_paragraph(simple_doc):
-    doc = DocxDocument.parse(simple_doc)
-    paras = [b for b in doc.blocks() if isinstance(b, Paragraph)]
-    assert len(paras) >= 1
-    p = paras[0]
-    text = p.text
-    assert len(text) >= 2
+def test_concurrent_comments_keep_unique_ids_and_exact_ranges(document):
+    paragraph = next(document.iter_paragraphs())
 
-    n = 40
-
-    def work(i: int) -> None:
-        # 不同区间，避免实现层对重叠范围的假设干扰本测试
-        start = i % (len(text) - 1)
-        end = start + 1
-        p.comment(f"t{i}", start=start, end=end, author=f"a{i}")
+    def add(index):
+        start = index % 9
+        paragraph.comment(str(index), start, start + 1, author=f"a{index}")
 
     with ThreadPoolExecutor(max_workers=8) as pool:
-        futures = [pool.submit(work, i) for i in range(n)]
-        for f in as_completed(futures):
-            f.result()
-
-    out = doc.render()
-    assert len(out) > 100
-    assert _comment_count_in_output(out) == n
-
-
-def test_concurrent_comment_and_render(simple_doc):
-    doc = DocxDocument.parse(simple_doc)
-    paras = [b for b in doc.blocks() if isinstance(b, Paragraph)]
-    p = paras[0]
-    text = p.text
-    span = max(1, len(text) - 1)
-
-    errors: list[BaseException] = []
-
-    def add_many() -> None:
-        try:
-            for i in range(30):
-                start = i % span
-                p.comment(f"x{i}", start=start, end=start + 1, author="t")
-        except BaseException as e:
-            errors.append(e)
-
-    def render_many() -> None:
-        try:
-            for _ in range(20):
-                b = doc.render()
-                assert len(b) > 100
-        except BaseException as e:
-            errors.append(e)
-
-    t1 = threading.Thread(target=add_many)
-    t2 = threading.Thread(target=render_many)
-    t1.start()
-    t2.start()
-    t1.join()
-    t2.join()
-
-    assert not errors
-    assert len(doc.render()) > 100
+        list(pool.map(add, range(40)))
+    reopened = DocxDocument.parse(document.render(), keep_comments=True)
+    comments = reopened.comments()
+    assert len({c.path for c in comments}) == len(comments) == 40
+    assert {c.text: (c.start, c.end, c.author) for c in comments} == {
+        str(index): (index % 9, index % 9 + 1, f"a{index}") for index in range(40)
+    }
 
 
-def test_iter_paragraphs_releases_lock_while_paused(simple_doc):
-    doc = DocxDocument.parse(simple_doc)
-    iterator = doc.iter_paragraphs()
+def test_concurrent_render_never_observes_partially_written_anchors(document):
+    paragraph = next(document.iter_paragraphs())
+    start = threading.Barrier(2)
+
+    def add_many():
+        start.wait(timeout=5)
+        for index in range(30):
+            paragraph.comment(str(index), index % 9, index % 9 + 1)
+
+    def render_many():
+        start.wait(timeout=5)
+        for _ in range(20):
+            snapshot = DocxDocument.parse(document.render(), keep_comments=True)
+            comments = snapshot.comments()
+            assert len({c.path for c in comments}) == len(comments)
+            assert {int(c.text) for c in comments} == set(range(len(comments)))
+            assert all(
+                (c.start, c.end) == (int(c.text) % 9, int(c.text) % 9 + 1)
+                for c in comments
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(add_many), pool.submit(render_many)]
+        for future in futures:
+            future.result(timeout=10)
+    assert len(document.comments()) == 30
+
+
+def test_iter_paragraphs_releases_lock_while_paused(document):
+    iterator = document.iter_paragraphs()
     next(iterator)
-
-    started = threading.Event()
     finished = threading.Event()
 
-    def add_comment() -> None:
-        started.set()
-        paragraph = next(p for p in doc.blocks() if isinstance(p, Paragraph) and p.text)
-        paragraph.comment("concurrent", start=0, end=1)
+    def add_comment():
+        next(document.iter_paragraphs()).comment("concurrent", 0, 1)
         finished.set()
 
-    worker = threading.Thread(target=add_comment)
+    worker = threading.Thread(target=add_comment, daemon=True)
     worker.start()
-    assert started.wait(timeout=1)
-    assert finished.wait(timeout=1)
-    worker.join(timeout=1)
+    try:
+        assert finished.wait(timeout=5)
+    finally:
+        iterator.close()
+        worker.join(timeout=5)
+    assert not worker.is_alive()

@@ -3,12 +3,12 @@
 import json
 import shlex
 from concurrent.futures import ThreadPoolExecutor
-from io import BytesIO
 
 import pytest
 from docx import Document
 
 from docxnote import DocxDocument, DocxShell
+from tests.support.docx import build_docx, save_docx
 
 
 def test_run_docstring_is_the_exported_tool_contract():
@@ -17,12 +17,7 @@ def test_run_docstring_is_the_exported_tool_contract():
 
 
 def make_doc(*texts):
-    source = Document()
-    for text in texts:
-        source.add_paragraph(text)
-    stream = BytesIO()
-    source.save(stream)
-    return DocxDocument.parse(stream.getvalue())
+    return DocxDocument.parse(build_docx(list(texts)))
 
 
 def records(result):
@@ -60,9 +55,7 @@ def test_scopes_and_slices():
         table.cell(0, 1).text = "付款🙂\n期限"
     nested = source.tables[1].cell(0, 0).add_table(rows=1, cols=1)
     nested.cell(0, 0).text = "nested"
-    stream = BytesIO()
-    source.save(stream)
-    shell = DocxShell(DocxDocument.parse(stream.getvalue()))
+    shell = DocxShell(DocxDocument.parse(save_docx(source)))
     rows = records(shell.run("docx t:1"))
     assert all(r["path"].startswith("t:1/") for r in rows)
     assert any(r["text"] == "nested" for r in rows)
