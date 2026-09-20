@@ -1,45 +1,37 @@
-# Agent 工具
+# DocxShell 指南
+
+[入门](README_zh.md) · [Python API](API_zh.md) · [English](SHELL.md)
 
 `DocxShell` 提供框架无关、绑定一个内存 `DocxDocument` 的模拟 shell。
 它不创建 Agent、不选择模型、不执行系统 shell，也不保存文件。
 
-## 安装与接入
+## 目录
 
-不需要额外依赖：
+- [快速开始](#快速开始)
+- [Python API 与返回值](#python-api)
+- [命令语言](#命令语言)
+- [大文档与输出限制](#大文档与输出限制)
+- [写入与并发](#写入与并发)
+- [可选框架接入](#可选框架接入)
 
-```bash
-pip install docxnote
-```
+## 快速开始
 
-Pydantic AI 可以作为一种可选接入方式，但不属于 docxnote 的依赖。调用方自行
-安装 Pydantic AI 和模型供应商，再把 `shell.run` 注册为框架中的字符串命令工具。
-
-```bash
-pip install pydantic-ai
-```
+安装 `docxnote` 后即可使用，不需要额外依赖。以下命令字符串传给
+`shell.run()`，不在系统终端执行。
 
 ```python
 from pathlib import Path
-
-from pydantic_ai import Agent
-
 from docxnote import DocxDocument, DocxShell
 
-
-async def review(model):
-    doc = DocxDocument.parse(
-        Path("input.docx").read_bytes(), keep_comments=True
-    )
-    shell = DocxShell(doc, author="reviewer")
-    agent = Agent(model, tools=[shell.run])
-    result = await agent.run("审阅这份合同。")
-    Path("reviewed.docx").write_bytes(doc.render())
-    return result.output
+doc = DocxDocument.parse(Path("input.docx").read_bytes(), keep_comments=True)
+shell = DocxShell(doc, author="reviewer")
+result = shell.run("docx | head -n 10")
+print(result["stdout"])
+print(result["truncated"])
 ```
 
-提示词、业务依赖、模型设置、重试和输出类型由应用管理。工具集可按次运行传入，
-不占用应用的 `Agent.deps`。每份文档创建独立会话，并隔离不同文档的对话历史；
-同一文档的多轮审阅可以复用会话。
+选取输出中的段落路径后，用 `comment PATH TEXT` 添加批注；调用方通过
+`Path("reviewed.docx").write_bytes(doc.render())` 保存。命令和分页规则见下文。
 
 ## Python API
 
@@ -53,13 +45,6 @@ shell.added_comments -> tuple[Comment, ...]
 按 Python 字符数计量，不是字节数或 token 数。默认输出上限为 4096 个字符。
 `added_comments` 返回本会话成功创建的真实 `Comment` 对象的不可变快照，
 不包含原有批注或其他调用方添加的批注。
-
-也可以直接执行解释器：
-
-```python
-result = shell.run("docx | grep -F '付款' | head -n 10")
-print(result["stdout"])
-```
 
 返回字典（`ShellResult` 是 `TypedDict`）：
 
@@ -87,6 +72,10 @@ print(result["stdout"])
 后面只能接过滤命令。`comment` 必须独立执行，不能接收或输出到管道。
 
 ### `docx [PATH] [--start N] [--end N]`
+
+内容范围与 [Python 文本视图](API_zh.md#text) 一致：包含块级内容控件，
+不包含内嵌文本框。
+
 
 不指定路径时按文档顺序输出所有段落，包含空段落、表格与嵌套表格中的段落。
 遍历和路径沿用 `doc.iter_paragraphs()`，不重复输出合并单元格。
@@ -203,3 +192,37 @@ comment p:12 '请说明起算时间' --quote '收到发票后' --start 5
 命令执行和 `added_comments` 快照使用文档现有的可重入锁，覆盖校验、写入与会话记录更新。
 同一文档上的调用串行执行，不同文档可以独立处理。该层沿用现有高层段落与批注能力，
 包含超链接与嵌套内容的锚点处理；未知内部错误没有回滚保证。
+
+<a id="安装与接入"></a>
+
+## 可选框架接入
+
+Pydantic AI 可以作为一种可选接入方式，但不属于 docxnote 的依赖。调用方自行
+安装 Pydantic AI 和模型供应商，再把 `shell.run` 注册为框架中的字符串命令工具。
+
+```bash
+pip install pydantic-ai
+```
+
+```python
+from pathlib import Path
+
+from pydantic_ai import Agent
+
+from docxnote import DocxDocument, DocxShell
+
+
+async def review(model):
+    doc = DocxDocument.parse(
+        Path("input.docx").read_bytes(), keep_comments=True
+    )
+    shell = DocxShell(doc, author="reviewer")
+    agent = Agent(model, tools=[shell.run])
+    result = await agent.run("审阅这份合同。")
+    Path("reviewed.docx").write_bytes(doc.render())
+    return result.output
+```
+
+提示词、业务依赖、模型设置、重试和输出类型由应用管理。工具集可按次运行传入，
+不占用应用的 `Agent.deps`。每份文档创建独立会话，并隔离不同文档的对话历史；
+同一文档的多轮审阅可以复用会话。

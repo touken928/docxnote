@@ -1,112 +1,65 @@
 <h1 align="center">Docxnote</h1>
 
 <p align="center">
-  <strong>轻量级 DOCX 批注引擎：在段落纯文本上添加与读取 Word 批注，仅依赖 <code>lxml</code>。</strong>
-</p>
-
-<p align="center">
   <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.12+-blue.svg?style=for-the-badge&logo=python" alt="Python 3.12+"></a>
   <a href="../LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge" alt="License: Apache 2.0"></a>
   <a href="https://pypi.org/project/docxnote/"><img src="https://img.shields.io/pypi/v/docxnote.svg?style=for-the-badge&logo=pypi&logoColor=white&label=pypi" alt="PyPI version"></a>
   <a href="https://github.com/touken928/docxnote/stargazers"><img src="https://img.shields.io/github/stars/touken928/docxnote?style=for-the-badge&color=yellow&logo=github" alt="GitHub stars"></a>
 </p>
 
-<p align="center">
-  <a href="../README.md">English</a> &middot; 简体中文
-</p>
+基于段落纯文本和字符偏移，读取与添加 Word 批注。
+运行时仅依赖 `lxml`。
 
----
-
-## 概览
-
-**docxnote** 是用于自动化 **Word 批注** 的 Python 库：遍历 `Paragraph` / `Table` / `Cell`，用 `paragraph.comment(...)` 添加批注，并可通过 `paragraph.comments` 与 `doc.comments()` 读取批注，而不需要手工处理 Run。
-
-**仓库：** [touken928/docxnote](https://github.com/touken928/docxnote)
-
----
+[English](../README.md) · [Python API](API_zh.md) · [文档 Shell](SHELL_zh.md) · [开发与测试](../tests/README.md)
 
 ## 安装
 
-```
+```bash
 pip install docxnote
-```
-
-使用 [uv](https://github.com/astral-sh/uv)：
-
-```
+# 或在 uv 项目中：
 uv add docxnote
 ```
 
----
-
 ## 快速开始
 
+读取已有 DOCX，为第一个非空段落添加批注，并另存为新文件：
+
 ```python
-from docxnote import DocxDocument, Paragraph, Table
+from pathlib import Path
+from docxnote import DocxDocument
 
-# 读取文档
-with open("document.docx", "rb") as f:
-    # 默认会先剥离原有批注，再写入新批注
-    doc = DocxDocument.parse(f.read())
+doc = DocxDocument.parse(Path("input.docx").read_bytes(), keep_comments=True)
 
-    # 如需保留原有批注并继续追加：
-    # doc = DocxDocument.parse(f.read(), keep_comments=True)
+for paragraph in doc.iter_paragraphs():
+    if paragraph.text:
+        paragraph.comment("请检查这段表述", author="reviewer")
+        break
 
-# 遍历文档块
-for block in doc.blocks():
-    if isinstance(block, Paragraph):
-        # 为段落添加批注
-        if block.text:
-            block.comment("请检查表述", end=5, author="reviewer")
-
-    elif isinstance(block, Table):
-        # 处理表格
-        rows, cols = block.shape()
-        for r in range(rows):
-            for c in range(cols):
-                cell = block[r, c]
-                # 为单元格内容添加批注
-                for inner in cell.blocks():
-                    if isinstance(inner, Paragraph) and inner.text:
-                        inner.comment("需复核", end=3, author="reviewer")
-
-# 生成新文档
-output = doc.render()
-with open("output.docx", "wb") as f:
-    f.write(output)
+Path("reviewed.docx").write_bytes(doc.render())
 ```
 
-表格遍历会正确处理 Word 行中省略的首尾网格列。批注范围基于
-`paragraph.text` 遵循 Python 切片语义，包括负数和超出范围的端点；规范化后
-反向范围会成为锚定在规范化起点的空范围。范围仅支持单一段落 —— 跨段落或
-未闭合的范围在读取时会抛出 `UnsupportedCommentRangeError`，而解析与渲染会
-原样透传。`Comment.date` 为 `datetime | None`：源 `w:date` 缺失、空白或非法
-时读取为 `None`。详见 [API 参考](API_zh.md)。
+`keep_comments=True` 保留旧批注及其元数据；默认值为 `False`，会剥离旧批注。
+文件读取与保存由调用方负责。
 
----
+## 选择接口
+
+| 任务 | 从这里开始 |
+| --- | --- |
+| 用 Python 读取文本、检查表格或添加批注 | [Python API](API_zh.md) |
+| 通过有输出上限的命令接口检索、批注，或接入 Agent 工具 | [DocxShell 指南](SHELL_zh.md) |
+| 运行检查或贡献修复 | [开发与测试](../tests/README.md) |
+
+段落遍历包含表格、嵌套表格和块级内容控件，合并单元格只访问一次。
+批注偏移基于 `paragraph.text` 的 `[start, end)` 区间。文本框会保留，但不计入
+该文本视图；批注范围读取仅支持单一段落。详见
+[文本范围](API_zh.md#text)与[范围限制](API_zh.md#单段范围限制)。
 
 ## 文档
 
-完整 Python API（方法、参数、批注、路径、表格与高级用法）：
+| 参考 | English | 简体中文 |
+| --- | --- | --- |
+| 安装与快速开始 | [Getting started](../README.md) | 本页 |
+| Python API 与行为 | [API](API.md) | [API 参考](API_zh.md) |
+| 文档 Shell 与接入 | [Shell](SHELL.md) | [Shell 指南](SHELL_zh.md) |
 
-- [API_zh.md](API_zh.md) — 简体中文  
-- [API.md](API.md) — English  
-
-框架无关的文档 shell 用法见 [SHELL_zh.md](SHELL_zh.md)。Pydantic AI 只是可选接入方式，
-不属于 docxnote 的依赖。
-
-当 `keep_comments=True` 时，原有批注会连同批注 XML 元数据、部件路径和关系一起保留，并在其基础上追加新批注。遍历包含块级内容控件中的段落和表格；内嵌文本框会保留，但不计入段落文本视图或遍历，详见 [范围说明](API_zh.md#text)。
-
----
-
-## 测试
-
-所有测试文档使用 python-docx 动态生成，不依赖外部文件，详见 [tests/README.md](../tests/README.md)。
-
----
-
----
-
-## 许可证
-
-本项目采用 Apache License 2.0 许可证。详见仓库根目录的 `LICENSE`。
+仓库维护约定见 [AGENTS.md](../AGENTS.md)。

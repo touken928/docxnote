@@ -1,48 +1,39 @@
-# Agent tools
+# DocxShell guide
+
+[Getting started](../README.md) · [Python API](API.md) · [简体中文](SHELL_zh.md)
 
 `DocxShell` provides a framework-independent simulated shell over one
 in-memory `DocxDocument`. It does not create an Agent, choose a model, execute
 a host shell, or save files.
 
-## Installation and integration
+## Contents
 
-No extra dependency is required:
+- [Quick start](#quick-start)
+- [Python API and results](#python-api)
+- [Command language](#command-language)
+- [Large documents and output limits](#large-documents-and-output-limits)
+- [Writes and concurrency](#writes-and-concurrency)
+- [Optional framework integration](#optional-framework-integration)
 
-```bash
-pip install docxnote
-```
+## Quick start
 
-Pydantic AI can be used as one optional integration, but it is not part of
-docxnote's dependencies. Applications install Pydantic AI and their chosen
-provider separately, then register `shell.run` in the framework's tool API.
-
-```bash
-pip install pydantic-ai
-```
+Install `docxnote`; no additional dependency is needed. Pass the command strings
+to `shell.run()`, rather than running them in a system terminal.
 
 ```python
 from pathlib import Path
-
-from pydantic_ai import Agent
-
 from docxnote import DocxDocument, DocxShell
 
-
-async def review(model):
-    doc = DocxDocument.parse(
-        Path("input.docx").read_bytes(), keep_comments=True
-    )
-    shell = DocxShell(doc, author="reviewer")
-    agent = Agent(model, tools=[shell.run])
-    result = await agent.run("Review this contract.")
-    Path("reviewed.docx").write_bytes(doc.render())
-    return result.output
+doc = DocxDocument.parse(Path("input.docx").read_bytes(), keep_comments=True)
+shell = DocxShell(doc, author="reviewer")
+result = shell.run("docx | head -n 10")
+print(result["stdout"])
+print(result["truncated"])
 ```
 
-Applications own prompts, dependencies, model settings, retries, and output
-types. Toolsets can be supplied per run, without occupying `Agent.deps`.
-Use a separate session for each document and keep their conversation histories
-separate. A session may be reused for multiple review turns on the same document.
+Choose a paragraph path from the output, then use `comment PATH TEXT` to add a
+comment. Save with `Path("reviewed.docx").write_bytes(doc.render())` in your
+application. Command and paging details follow below.
 
 ## Python API
 
@@ -57,13 +48,6 @@ integer of at least 256, measured in Python string characters, not tokens or
 bytes. The default output limit is 4096 characters.
 `added_comments` returns an immutable snapshot of the actual `Comment` objects
 created through this session; existing or externally added comments are excluded.
-
-You can also use the interpreter directly:
-
-```python
-result = shell.run("docx | grep -F 'payment' | head -n 10")
-print(result["stdout"])
-```
 
 Every result is a dictionary (`ShellResult`, a `TypedDict`):
 
@@ -95,6 +79,10 @@ A pipeline starts with `docx` or `comments`, followed only by filters.
 `comment` must stand alone; it never consumes pipeline input.
 
 ### `docx [PATH] [--start N] [--end N]`
+
+Content scope follows the [Python text view](API.md#text): block content
+controls are included; embedded text boxes are excluded.
+
 
 Without a path, yields all paragraphs in document order, including empty
 paragraphs and paragraphs in merged/nested tables. Traversal and paths follow
@@ -232,3 +220,39 @@ including validation, writes, and session bookkeeping. Calls on the same documen
 are serialized; independent documents can be processed independently. The layer
 uses the existing high-level paragraph/comment behavior, including hyperlinks
 and nested content. Unexpected internal failures carry no rollback guarantee.
+
+<a id="installation-and-integration"></a>
+
+## Optional framework integration
+
+Pydantic AI can be used as one optional integration, but it is not part of
+docxnote's dependencies. Applications install Pydantic AI and their chosen
+provider separately, then register `shell.run` in the framework's tool API.
+
+```bash
+pip install pydantic-ai
+```
+
+```python
+from pathlib import Path
+
+from pydantic_ai import Agent
+
+from docxnote import DocxDocument, DocxShell
+
+
+async def review(model):
+    doc = DocxDocument.parse(
+        Path("input.docx").read_bytes(), keep_comments=True
+    )
+    shell = DocxShell(doc, author="reviewer")
+    agent = Agent(model, tools=[shell.run])
+    result = await agent.run("Review this contract.")
+    Path("reviewed.docx").write_bytes(doc.render())
+    return result.output
+```
+
+Applications own prompts, dependencies, model settings, retries, and output
+types. Toolsets can be supplied per run, without occupying `Agent.deps`.
+Use a separate session for each document and keep their conversation histories
+separate. A session may be reused for multiple review turns on the same document.

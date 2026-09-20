@@ -1,21 +1,35 @@
-# Tests
+# Development and tests
 
-## Install dependencies
+[Project overview](../README.md) · [Python API](../docs/API.md) · [Maintenance rules](../AGENTS.md)
+
+Run commands from the repository root. Dependencies are managed with `uv`.
+All test documents are generated with `python-docx`; no checked-in DOCX fixtures
+or Word installation is required.
+
+## Set up
 
 ```bash
 uv sync --dev
+uv run pre-commit install
 ```
 
-## Run tests
+## Run checks
+
+Before committing:
 
 ```bash
-# Run all tests
+uv run pre-commit run --all-files
 uv run pytest
+```
 
-# Verbose output
-uv run pytest -v
+Pre-commit checks the lockfile, Ruff lint/format, static types with ty, and tests.
+Its first run may download hook environments and tools.
 
-# Run one file
+During development, run the relevant domain or regression file:
+
+```bash
+uv run pytest tests/comments/ -q
+uv run pytest tests/comments/test_comment_part_paths.py -v
 uv run pytest tests/xml/test_xml_validity.py
 ```
 
@@ -27,34 +41,24 @@ uv run pytest --cov=docxnote --cov-report=term-missing
 
 ## Test layout
 
-- **shell/**
-  - **test_shell.py** - bounded document shell commands, filtering, paging, comments, and concurrency
+| Directory | Coverage | Regression examples |
+| --- | --- | --- |
+| [comments/](comments/) | Writing, reading, ranges, dates, whitespace, preservation | [Part paths and relationships](comments/test_comment_part_paths.py), [range ordering](comments/test_nested_comment_order.py), [unsupported ranges](comments/test_unsupported_ranges.py) |
+| [document/](document/) | Paths, structure, addressable objects, thread safety | [Content controls](document/test_content_controls.py), [concurrent access](document/test_thread_safety.py) |
+| [tables/](tables/) | Cell contents, nesting, merges, logical grid | [Grid lanes](tables/test_grid_lanes.py), [nested tables](tables/test_nested_tables.py) |
+| [text/](text/) | Paragraph text and embedded-content scope | [Text parity](text/test_paragraph_text.py), [text-box scope](text/test_textbox_scope.py) |
+| [xml/](xml/) | XML structure and DOCX package consistency | [Package validity](xml/test_xml_validity.py) |
+| [shell/](shell/) | Commands, filters, paging, comments, concurrency | [Shell behavior](shell/test_shell.py) |
 
-- **comments/**
-  - **test_comment_writing.py** - comment creation and render behavior
-  - **test_comment_reading.py** - comment reading, precise ranges, and `keep_comments`
-  - **test_comment_conflict_ranges.py** - overlapping comments and range/run splitting
-  - **test_comment_date_optional.py** - missing and invalid comment dates
-  - **test_existing_comment_preservation.py** - existing comment preservation and `comments.xml` metadata
-  - **test_comment_part_paths.py** - relationship-based comment part paths, preservation, stripping, and append IDs
-  - **test_nested_comment_order.py** - nested and equal-start comment traversal order
-  - **test_unsupported_ranges.py** - cross-paragraph and unclosed range handling
-  - **test_whitespace_preservation.py** - run splitting and `xml:space` preservation
-- **document/**
-  - **test_content_controls.py** - block content controls in bodies/cells, paths, shell traversal, and comment round trips
-  - **test_addressable_units.py** - addressable paths and paragraph traversal
-  - **test_paths.py** - path parsing and building helpers
-  - **test_structure_comparison.py** - structure parity with `python-docx`
-  - **test_thread_safety.py** - shared-document thread safety
-- **tables/**
-  - **test_cell_content.py** - cell text extraction
-  - **test_grid_lanes.py** - table grid lanes, omitted cells, and vertical merges
-  - **test_nested_tables.py** - nested table traversal
-  - **test_table_shape.py** - table shape and merged-cell behavior
-- **text/**
-  - **test_textbox_scope.py** - embedded text-box exclusion from host coordinates and preservation during run splitting
-  - **test_paragraph_text.py** - paragraph text extraction
-- **xml/**
-  - **test_xml_validity.py** - package and XML validity
+Shared fixtures live in [conftest.py](conftest.py). Comment XML/package builders
+live in [comments/_helpers.py](comments/_helpers.py).
 
-All test documents are generated dynamically with `python-docx`; there are no checked-in DOCX fixtures.
+## Add a regression
+
+Place new tests in the closest domain. Reproduce the failure before changing the
+implementation, then cover the affected public behavior and render/reparse cycle
+where relevant. Package changes should check relationships and content types as
+well as visible comments.
+
+Keep English and Chinese behavior references synchronized; the ownership and
+update rules are in [AGENTS.md](../AGENTS.md#文档分工).
