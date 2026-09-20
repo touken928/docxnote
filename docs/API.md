@@ -21,6 +21,14 @@ Parses the DOCX and returns a document object.
 
 - **keep_comments**: Whether to keep existing comments. Default `False` (strips them). Use `True` to preserve existing comments, keep their existing comment XML metadata, and append new ones.
 
+The comments part is located through the document relationship, including relative
+and package-absolute targets; its filename need not be `word/comments.xml`.
+With `keep_comments=True`, the part stays at its original path, its document
+relationship and its own relationships are preserved, and new comment IDs follow
+the existing maximum. With `False`, the old part and its own relationship part
+are removed; if new comments are added, they use the resolved part path without
+reusing the old comment content or its relationships.
+
 ---
 
 ### blocks
@@ -35,7 +43,10 @@ Returns block-level elements:
 (Paragraph | Table, ...)
 ```
 
-Order matches the Word document.
+Order matches the Word document. Block-level content controls (`w:sdt`) are
+transparent: paragraphs and tables in their `w:sdtContent`, including nested
+controls, appear in place. Controls do not add path segments; `p:N` and `t:N`
+count the expanded blocks at that level. This also applies to `Cell.blocks()`.
 
 ---
 
@@ -104,7 +115,7 @@ Fields:
 - `text` / `author` — comment body and author
 - `date` — `datetime | None`; parsed from the comment's `w:date` (UTC). It is `None` when the source attribute is missing, blank, or invalid. With `keep_comments=True`, the source `w:date` attribute is preserved verbatim on render (missing stays missing, invalid strings are re-emitted unchanged).
 
-Comments are returned in the XML document order of their `commentRangeStart` markers, so for nested ranges the outer comment comes before the inner one.
+Comments are returned in the XML document order of their `commentRangeStart` markers, so for nested ranges the outer comment comes before the inner one. This ordering also applies to equal-start and zero-length ranges, regardless of their closing order.
 
 ### Single-paragraph scope
 
@@ -116,7 +127,13 @@ Comment ranges are scoped to a single paragraph: `commentRangeStart` and `commen
 text = paragraph.text
 ```
 
-Full paragraph text, including `\n` and `\t`.
+Paragraph text, including `\n` and `\t`, with hyperlinks and inline content
+controls included. Embedded text boxes inside runs belong to separate paragraphs:
+their text is excluded from the host paragraph text and character offsets. Text
+boxes are preserved during render but are not exposed by `blocks()`,
+`iter_paragraphs()`, or the comment range views. This scope also applies to
+`DocxShell`. Reading text, splitting runs, and reading/writing comment anchors
+use the same host-paragraph coordinates.
 
 ---
 

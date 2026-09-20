@@ -5,6 +5,7 @@ from __future__ import annotations
 from lxml import etree
 from .namespaces import NS
 from .paths import build_segment, join_path
+from ._blocks import iter_block_elements
 
 
 class Table:
@@ -270,7 +271,7 @@ class Cell:
             blocks: list = []
             para_idx = 0
             table_idx = 0
-            for child in self._element:
+            for child in iter_block_elements(self._element):
                 tag = etree.QName(child.tag).localname
                 if tag == "p":
                     child_path = join_path(self._path, build_segment("p", para_idx))

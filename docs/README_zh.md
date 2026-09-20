@@ -95,7 +95,7 @@ with open("output.docx", "wb") as f:
 框架无关的文档 shell 用法见 [SHELL_zh.md](SHELL_zh.md)。Pydantic AI 只是可选接入方式，
 不属于 docxnote 的依赖。
 
-当 `keep_comments=True` 时，原有批注会连同已有的批注 XML 元数据一起保留，并在其基础上追加新批注。
+当 `keep_comments=True` 时，原有批注会连同批注 XML 元数据、部件路径和关系一起保留，并在其基础上追加新批注。遍历包含块级内容控件中的段落和表格；内嵌文本框会保留，但不计入段落文本视图或遍历，详见 [范围说明](API_zh.md#text)。
 
 ---
 

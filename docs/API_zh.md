@@ -20,6 +20,12 @@ DocxDocument.parse(docx_bytes, *, keep_comments=False)
 
 - **keep_comments**: 是否保留原有批注。默认 `False`（剥离原有批注）。如果你需要在“已有批注的 docx 上继续添加批注”并保留旧批注及其已有批注 XML 元数据，请传 `True`。
 
+批注部件通过文档关系定位，支持相对路径和包内绝对路径，不要求文件名为
+`word/comments.xml`。`keep_comments=True` 保留原部件路径、文档中的批注关系及
+批注部件自身的关系，新批注 ID 从已有最大 ID 之后分配。`False` 会移除旧批注
+部件及其关系部件；若追加新批注，则使用解析得到的部件路径，但不复用旧批注
+内容及其自身的关系。
+
 ---
 
 ### blocks
@@ -34,7 +40,9 @@ doc.blocks()
 (Paragraph | Table, ...)
 ```
 
-顺序与 Word 文档一致。
+顺序与 Word 文档一致。块级内容控件（`w:sdt`）按原位置展开其
+`w:sdtContent` 中的段落和表格，支持嵌套控件。控件不增加路径段，`p:N`、
+`t:N` 按该层展开后的块编号。`Cell.blocks()` 采用相同规则。
 
 ---
 
@@ -105,7 +113,7 @@ for c in paragraph.comments:
 - `text` / `author`：批注正文与作者
 - `date`：`datetime | None`；来自批注的 `w:date`（UTC）。源属性缺失、空白或非法时为 `None`。`keep_comments=True` 渲染时原样保留源 `w:date` 属性（缺失仍缺失，非法字符串原样保留）。
 
-批注按其 `commentRangeStart` 标记的 XML 文档顺序返回，嵌套批注外层在前。
+批注按其 `commentRangeStart` 标记的 XML 文档顺序返回，嵌套批注外层在前。同起点和零长度范围也遵循该顺序，不受闭合顺序影响。
 
 ### 单段范围限制
 
@@ -117,7 +125,11 @@ for c in paragraph.comments:
 text = paragraph.text
 ```
 
-返回段落完整文本，保留换行符（`\n`）和制表符（`\t`）。
+返回段落文本，保留换行符（`\n`）和制表符（`\t`），包含超链接与行内
+内容控件。run 内嵌文本框属于独立段落，其文本不计入宿主段落的文本和字符偏移。
+文本框在渲染时保留，但不通过 `blocks()`、`iter_paragraphs()` 或批注范围视图
+暴露；`DocxShell` 采用相同范围。文本读取、run 拆分及批注锚点读写统一使用
+宿主段落的坐标。
 
 ---
 
@@ -221,7 +233,7 @@ cell.blocks()
 (Paragraph | Table, ...)
 ```
 
-顺序与 Word 文档一致。
+顺序与 Word 文档一致，块级内容控件按原位置展开，编号规则与 `doc.blocks()` 相同。
 
 ---
 

@@ -36,10 +36,12 @@ uv run pytest --cov=docxnote --cov-report=term-missing
   - **test_comment_conflict_ranges.py** - overlapping comments and range/run splitting
   - **test_comment_date_optional.py** - missing and invalid comment dates
   - **test_existing_comment_preservation.py** - existing comment preservation and `comments.xml` metadata
-  - **test_nested_comment_order.py** - nested comment traversal order
+  - **test_comment_part_paths.py** - relationship-based comment part paths, preservation, stripping, and append IDs
+  - **test_nested_comment_order.py** - nested and equal-start comment traversal order
   - **test_unsupported_ranges.py** - cross-paragraph and unclosed range handling
   - **test_whitespace_preservation.py** - run splitting and `xml:space` preservation
 - **document/**
+  - **test_content_controls.py** - block content controls in bodies/cells, paths, shell traversal, and comment round trips
   - **test_addressable_units.py** - addressable paths and paragraph traversal
   - **test_paths.py** - path parsing and building helpers
   - **test_structure_comparison.py** - structure parity with `python-docx`
@@ -50,6 +52,7 @@ uv run pytest --cov=docxnote --cov-report=term-missing
   - **test_nested_tables.py** - nested table traversal
   - **test_table_shape.py** - table shape and merged-cell behavior
 - **text/**
+  - **test_textbox_scope.py** - embedded text-box exclusion from host coordinates and preservation during run splitting
   - **test_paragraph_text.py** - paragraph text extraction
 - **xml/**
   - **test_xml_validity.py** - package and XML validity

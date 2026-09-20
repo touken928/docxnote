@@ -96,7 +96,10 @@ Framework-independent document shell usage is documented in [docs/SHELL.md](docs
 Pydantic AI is one optional integration and is not a docxnote dependency.
 
 When `keep_comments=True`, existing comments are preserved and re-emitted with
-their existing comment XML metadata, while new comments are appended on top.
+their existing comment XML metadata, part path, and relationships, while new
+comments are appended on top. Block content controls are included in traversal.
+Embedded text boxes are preserved but excluded from the paragraph text view
+and traversal; see the [scope details](docs/API.md#text).
 
 ---
 

@@ -1,7 +1,9 @@
 """段落处理"""
 
+from collections.abc import Iterator
 from copy import deepcopy
 from datetime import datetime
+from itertools import count
 from typing import List, Tuple
 
 from lxml import etree
@@ -36,7 +38,7 @@ class Paragraph:
                 return self._text_cache
 
             text_parts = []
-            for run in self._element.findall(".//w:r", NS):
+            for run, _parent, _index in self._iter_runs(self._element):
                 # 遍历 run 的所有子元素，保持顺序
                 for child in run:
                     tag = etree.QName(child.tag).localname
@@ -78,7 +80,7 @@ class Paragraph:
             if safe_end < safe_start:
                 safe_end = safe_start
 
-            runs = list(self._element.findall(".//w:r", NS))
+            runs = list(self._iter_runs(self._element))
             if not runs:
                 raise ValueError(
                     f"Cannot add comment to paragraph '{self._path}': "
@@ -110,7 +112,7 @@ class Paragraph:
 
     def _insert_comment_markers(self, comment_id: int, start: int, end: int):
         """在指定位置插入批注起止标记"""
-        runs = list(self._element.findall(".//w:r", NS))
+        runs = list(self._iter_runs(self._element))
         if not runs:
             return
 
@@ -163,7 +165,7 @@ class Paragraph:
         return result
 
     def _iter_runs(self, container):
-        """按文档顺序遍历容器内所有 run。"""
+        """遍历宿主段落的 run，不进入 run 内文本框等独立内容。"""
         for idx, child in enumerate(container):
             if etree.QName(child.tag).localname == "r":
                 yield child, container, idx
@@ -293,7 +295,7 @@ class Paragraph:
         ranges: list[tuple[int, int, int, int]] = []
         open_starts: dict[int, tuple[int, int]] = {}
 
-        self._walk_comment_ranges(self._element, 0, open_starts, ranges)
+        self._walk_comment_ranges(self._element, 0, open_starts, ranges, count())
 
         if open_starts:
             unclosed = ", ".join(str(cid) for cid in open_starts)
@@ -314,6 +316,7 @@ class Paragraph:
         current_pos: int,
         open_starts: dict[int, tuple[int, int]],
         ranges: list[tuple[int, int, int, int]],
+        start_sequence: Iterator[int],
     ) -> int:
         """递归遍历段落内容，收集批注范围。
 
@@ -328,7 +331,7 @@ class Paragraph:
                 if cid is None:
                     continue
                 if cid not in open_starts:
-                    open_starts[cid] = (current_pos, len(open_starts))
+                    open_starts[cid] = (current_pos, next(start_sequence))
                 continue
 
             if tag == "commentRangeEnd":
@@ -352,7 +355,7 @@ class Paragraph:
                 continue
 
             current_pos = self._walk_comment_ranges(
-                child, current_pos, open_starts, ranges
+                child, current_pos, open_starts, ranges, start_sequence
             )
 
         return current_pos

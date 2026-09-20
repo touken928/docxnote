@@ -70,3 +70,32 @@ class TestNestedCommentOrder:
 
         comments = doc.comments()
         assert [c.text for c in comments] == ["outer", "inner"]
+
+
+def test_reused_active_count_does_not_reorder_equal_start_markers():
+    from tests.comments._helpers import make_docx_with_comment_markers
+
+    data = make_docx_with_comment_markers(
+        ["text"],
+        {
+            0: [
+                ("commentRangeStart", 0),
+                ("commentRangeStart", 1),
+                ("commentRangeEnd", 0),
+                ("commentRangeStart", 2),
+                ("commentRangeEnd", 2),
+                ("commentRangeEnd", 1),
+            ]
+        },
+        comment_meta={i: (str(i), "author", None) for i in range(3)},
+    )
+    doc = DocxDocument.parse(data, keep_comments=True)
+    for current in (doc, DocxDocument.parse(doc.render(), keep_comments=True)):
+        paragraph = current.resolve("p:0")
+        assert isinstance(paragraph, Paragraph)
+        assert [c.path for c in paragraph.comments] == [
+            "p:0#0",
+            "p:0#1",
+            "p:0#2",
+        ]
+        assert [c.path for c in current.comments()] == ["p:0#0", "p:0#1", "p:0#2"]

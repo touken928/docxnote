@@ -1,6 +1,7 @@
 """DOCX 文档解析和渲染"""
 
 import io
+import posixpath
 import threading
 import zipfile
 from copy import deepcopy
@@ -14,6 +15,11 @@ from .table import Table, Cell
 from .namespaces import NS
 from .comments import Comment
 from .paths import build_segment, comment_path, parse_path
+from ._blocks import iter_block_elements
+
+_COMMENTS_REL_TYPE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+)
 
 
 def _parse_w_comment_date(value: str | None) -> datetime | None:
@@ -64,6 +70,8 @@ class DocxDocument:
         self._existing_comment_elements: dict[int, etree._Element] = {}
         self._comments_root_template: etree._Element | None = None
         self._comment_id_counter = 0
+        self._comments_part = "word/comments.xml"
+        self._keep_comments = False
         self._lock = threading.RLock()
 
     @classmethod
@@ -82,6 +90,8 @@ class DocxDocument:
         doc_xml = self._zip.read("word/document.xml")
         self._document_xml = etree.fromstring(doc_xml)
         self._body = self._document_xml.find(".//w:body", NS)
+        self._keep_comments = keep_comments
+        self._comments_part = self._find_comments_part()
 
         if keep_comments:
             # 加载已有的批注
@@ -120,10 +130,24 @@ class DocxDocument:
                 if parent is not None:
                     parent.remove(run)
 
+    def _find_comments_part(self) -> str:
+        """Resolve the comments relationship relative to the document part."""
+        try:
+            rels = etree.fromstring(self._zip.read("word/_rels/document.xml.rels"))
+        except KeyError:
+            return "word/comments.xml"
+        for rel in rels:
+            if rel.get("Type") == _COMMENTS_REL_TYPE:
+                target = rel.get("Target")
+                if not target or rel.get("TargetMode") == "External":
+                    raise ValueError("comments relationship must target a package part")
+                return posixpath.normpath(posixpath.join("/word", target)).lstrip("/")
+        return "word/comments.xml"
+
     def _load_existing_comments(self):
         """加载已有的批注"""
         try:
-            comments_xml = self._zip.read("word/comments.xml")
+            comments_xml = self._zip.read(self._comments_part)
             comments_tree = etree.fromstring(comments_xml)
 
             max_id = -1
@@ -194,10 +218,8 @@ class DocxDocument:
             blocks: list[Paragraph | Table] = []
             para_idx = 0
             table_idx = 0
-            for child in self._body:
-                tag = etree.QName(
-                    child.tag,  # ty: ignore[invalid-argument-type]
-                ).localname
+            for child in iter_block_elements(self._body):
+                tag = etree.QName(child.tag).localname
                 if tag == "p":
                     blocks.append(
                         Paragraph(child, self, path=build_segment("p", para_idx))
@@ -265,12 +287,21 @@ class DocxDocument:
             content_types_data = self._prepare_content_types(
                 include_comments=include_comments
             )
+            comments_rels_part = posixpath.join(
+                posixpath.dirname(self._comments_part),
+                "_rels",
+                posixpath.basename(self._comments_part) + ".rels",
+            )
 
             # 复制所有原始文件
             for item in self._zip.namelist():
                 if item == "word/document.xml":
                     continue
-                if item == "word/comments.xml":
+                if item == self._comments_part:
+                    continue
+                if item == comments_rels_part and (
+                    not self._keep_comments or not include_comments
+                ):
                     continue
                 if item == "word/_rels/document.xml.rels" and rels_data is not None:
                     continue
@@ -293,7 +324,7 @@ class DocxDocument:
             # 写入 comments.xml、rels 和 content types
             if self._comments:
                 comments_xml = self._build_comments_xml()
-                out_zip.writestr("word/comments.xml", comments_xml)
+                out_zip.writestr(self._comments_part, comments_xml)
 
             if rels_data is not None:
                 out_zip.writestr("word/_rels/document.xml.rels", rels_data)
@@ -401,12 +432,15 @@ class DocxDocument:
                 },
             )
 
-        comment_type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments"
+        has_comments = False
         for rel in list(rels_xml):
-            if rel.get("Type") == comment_type:
-                rels_xml.remove(rel)
+            if rel.get("Type") == _COMMENTS_REL_TYPE:
+                if include_comments:
+                    has_comments = True
+                else:
+                    rels_xml.remove(rel)
 
-        if include_comments:
+        if include_comments and not has_comments:
             # 添加 comments 关系
             max_id = 0
             for rel in rels_xml:
@@ -423,8 +457,8 @@ class DocxDocument:
                 "Relationship",
                 attrib={
                     "Id": f"rId{max_id + 1}",
-                    "Type": comment_type,
-                    "Target": "comments.xml",
+                    "Type": _COMMENTS_REL_TYPE,
+                    "Target": posixpath.relpath(self._comments_part, "word"),
                 },
             )
 
@@ -441,7 +475,7 @@ class DocxDocument:
         )
 
         for override in list(ct_xml):
-            if override.get("PartName") == "/word/comments.xml":
+            if override.get("PartName") == "/" + self._comments_part:
                 ct_xml.remove(override)
 
         if include_comments:
@@ -449,7 +483,7 @@ class DocxDocument:
             override_elem = etree.Element(
                 f"{{{ns}}}Override",
                 attrib={
-                    "PartName": "/word/comments.xml",
+                    "PartName": "/" + self._comments_part,
                     "ContentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml",
                 },
             )
