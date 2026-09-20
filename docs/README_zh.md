@@ -7,10 +7,14 @@
   <a href="https://github.com/touken928/docxnote/stargazers"><img src="https://img.shields.io/github/stars/touken928/docxnote?style=for-the-badge&color=yellow&logo=github" alt="GitHub stars"></a>
 </p>
 
-基于段落纯文本和字符偏移，读取与添加 Word 批注。
-运行时仅依赖 `lxml`。
+<p align="center">
+  基于段落纯文本和字符偏移，读取与添加 Word 批注。
+  运行时仅依赖 <code>lxml</code>。
+</p>
 
-[English](../README.md) · [Python API](API_zh.md) · [文档 Shell](SHELL_zh.md) · [开发与测试](../tests/README.md)
+<p align="center">
+  <a href="../README.md">English</a> · <a href="API_zh.md">Python API</a> · <a href="SHELL_zh.md">文档 Shell</a> · <a href="../tests/README.md">开发与测试</a>
+</p>
 
 ## 安装
 

@@ -7,10 +7,14 @@
   <a href="https://github.com/touken928/docxnote/stargazers"><img src="https://img.shields.io/github/stars/touken928/docxnote?style=for-the-badge&color=yellow&logo=github" alt="GitHub stars"></a>
 </p>
 
-Read and add Word comments using plain paragraph text and character offsets.
-Runtime dependency: `lxml`.
+<p align="center">
+  Read and add Word comments using plain paragraph text and character offsets.
+  Runtime dependency: <code>lxml</code>.
+</p>
 
-[简体中文](docs/README_zh.md) · [Python API](docs/API.md) · [Document shell](docs/SHELL.md) · [Development and tests](tests/README.md)
+<p align="center">
+  <a href="docs/README_zh.md">简体中文</a> · <a href="docs/API.md">Python API</a> · <a href="docs/SHELL.md">Document shell</a> · <a href="tests/README.md">Development and tests</a>
+</p>
 
 ## Installation
 
