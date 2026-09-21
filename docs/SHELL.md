@@ -228,6 +228,8 @@ and nested content. Unexpected internal failures carry no rollback guarantee.
 Pydantic AI can be used as one optional integration, but it is not part of
 docxnote's dependencies. Applications install Pydantic AI and their chosen
 provider separately, then register `shell.run` in the framework's tool API.
+The `run` docstring includes command syntax, examples, and output-handling rules
+so frameworks that extract tool descriptions can expose these to the model.
 
 ```bash
 pip install pydantic-ai
