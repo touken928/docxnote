@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING
 
 from lxml import etree
 
+from ._paths import build_segment, comment_path, join_path, parse_path
 from ._state import DocumentOwner
 from ._xml.blocks import iter_block_elements
 from ._xml.namespaces import local_name
-from .paths import build_segment, comment_path, join_path, parse_path
 
 if TYPE_CHECKING:
     from .comments import Comment

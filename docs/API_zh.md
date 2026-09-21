@@ -12,7 +12,7 @@
 - [Paragraph](#paragraph)：文本与添加批注
 - [Comment](#comment-object)：字段、读取顺序与范围限制
 - [Table](#table) / [Cell](#cell)：表格坐标和单元格内容
-- [路径](#可寻址单元path)：地址格式与辅助函数
+- [路径](#可寻址单元path)：地址格式与对象定位
 - [高级用法](#高级用法)：嵌套表格、多条批注、合并单元格
 - [DocxShell / ShellResult](SHELL_zh.md#python-api)：命令接口的独立参考
 
@@ -285,18 +285,9 @@ comment = doc.resolve("t:0/r:1/c:2/p:0#3")
 
 编号从零开始，段落与表格分别计数。批注路径会按规范形式解析，因此路径段之间的空白或多余分隔符不会影响定位。合并单元格覆盖坐标会解析为原点单元格，其 `path` 使用原点坐标。遍历规则见 [iter_paragraphs](#iter_paragraphs)。
 
-### 路径辅助函数
+<a id="路径辅助函数"></a>
 
-以下函数可从 `docxnote` 直接导入：
-
-| 调用 | 返回值 |
-| --- | --- |
-| `build_segment("p", 2)` | `"p:2"` |
-| `join_path("t:0", "r:1", "c:2")` | `"t:0/r:1/c:2"`，忽略空字符串 |
-| `comment_path("p:0", 3)` | `"p:0#3"` |
-| `parse_path("p:0#3")` | `([("p", 0)], 3)`；无批注后缀时第二项为 `None` |
-
-编号必须非负。`parse_path` 解析语法，`doc.resolve` 检查路径结构及对象是否存在。
+通过对象的 `.path` 获取地址，使用 `doc.resolve(path)` 定位对象。路径构造与解析辅助函数属于内部实现。
 
 ## 高级用法
 

@@ -13,7 +13,7 @@ output bytes. Your application handles reading and writing files.
 - [Paragraph](#paragraph): text and comment creation
 - [Comment](#comment-object): fields, reading order, and range limits
 - [Table](#table) / [Cell](#cell): grid coordinates and cell contents
-- [Paths](#addressable-units-paths): addresses and helper functions
+- [Paths](#addressable-units-paths): addresses and object resolution
 - [Advanced](#advanced): nested tables, multiple comments, merged cells
 - [DocxShell / ShellResult](SHELL.md#python-api): separate command-interface reference
 
@@ -290,19 +290,10 @@ are accepted. Coordinates covered by a merged cell resolve to its origin cell,
 whose `path` uses the origin coordinates. See [iter_paragraphs](#iter_paragraphs)
 for traversal behavior.
 
-### Path helpers
+<a id="path-helpers"></a>
 
-Import these functions directly from `docxnote`:
-
-| Call | Return value |
-| --- | --- |
-| `build_segment("p", 2)` | `"p:2"` |
-| `join_path("t:0", "r:1", "c:2")` | `"t:0/r:1/c:2"`; empty strings are skipped |
-| `comment_path("p:0", 3)` | `"p:0#3"` |
-| `parse_path("p:0#3")` | `([("p", 0)], 3)`; the second item is `None` without a comment suffix |
-
-Indices must be nonnegative. `parse_path` parses syntax; `doc.resolve` checks
-path structure and whether the target exists.
+Use an object’s `.path` and `doc.resolve(path)` to work with addresses.
+Path construction and parsing helpers are internal implementation details.
 
 ## Advanced
 

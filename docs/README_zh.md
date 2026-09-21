@@ -44,6 +44,7 @@ Path("reviewed.docx").write_bytes(doc.render())
 
 `keep_comments=True` 保留旧批注及其元数据；默认值为 `False`，会剥离旧批注。
 文件读取与保存由调用方负责。
+通过对象的 `.path` 和 `doc.resolve(path)` 定位文档内容；路径构造与解析辅助函数属于内部实现。
 
 ## 选择接口
 

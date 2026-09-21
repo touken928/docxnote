@@ -45,6 +45,8 @@ Path("reviewed.docx").write_bytes(doc.render())
 `keep_comments=True` preserves existing comments and their metadata. The default
 is `False`, which strips existing comments. File reading and writing belong to
 your application.
+Use an object's `.path` and `doc.resolve(path)` to locate document content;
+path construction and parsing helpers are internal.
 
 ## Choose your interface
 

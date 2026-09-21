@@ -2,7 +2,7 @@
 
 import pytest
 
-from docxnote import build_segment, comment_path, join_path, parse_path
+from docxnote._paths import build_segment, comment_path, join_path, parse_path
 
 
 @pytest.mark.parametrize("kind,index", [("p", 0), ("t", 3), ("r", 12), ("c", 7)])

@@ -86,13 +86,3 @@ def parse_path(path: str) -> tuple[list[tuple[str, int]], int | None]:
         raise ValueError(f"path has no segments: {path!r}")
 
     return segments, comment_id
-
-
-__all__ = [
-    "SEP",
-    "COMMENT_SEP",
-    "build_segment",
-    "join_path",
-    "comment_path",
-    "parse_path",
-]

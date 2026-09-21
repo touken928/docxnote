@@ -5,11 +5,11 @@ from datetime import datetime
 from lxml import etree
 
 from ._comment_store import CommentRecord
+from ._paths import comment_path
 from ._state import DocumentOwner
 from ._xml.ranges import collect_comment_ranges, insert_comment_markers
 from ._xml.text import iter_runs, paragraph_text
 from .comments import Comment
-from .paths import comment_path
 
 
 class Paragraph:

@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING
 from lxml import etree
 
 from ._navigation import collect_blocks
+from ._paths import build_segment, join_path
 from ._state import DocumentOwner
 from ._xml.tables import CellRegion, parse_table_grid
-from .paths import build_segment, join_path
 
 if TYPE_CHECKING:
     from .paragraph import Paragraph

@@ -38,7 +38,7 @@ Keep the public API stable during internal refactors, including names, argument 
 | `paragraph.py` | Expose paragraph text and anchored comment views; delegate run splitting and anchor parsing. |
 | `table.py` | Construct public `Table` / `Cell` views and maintain one immutable coordinate matrix. |
 | `comments.py` | Define immutable `Comment` snapshots and export the public range exception; do not store mutable records here. |
-| `paths.py` | Parse and construct string addresses; leave structural validation and object lookup to navigation. |
+| `_paths.py` | Parse and construct string addresses; leave structural validation and object lookup to navigation. |
 | `shell.py` | Parse commands, filter records, enforce output budgets, and track session comments; use high-level document operations. |
 | `_state.py` | Own shared XML roots, package, comment store, preservation policy, and the single document lock. |
 | `_package.py` | Handle ZIP parts, comment part paths, relationships, and content types; do not interpret paragraph text or anchors. |
@@ -47,6 +47,8 @@ Keep the public API stable during internal refactors, including names, argument 
 | `_xml/` | Implement namespaces, block traversal, text coordinates, anchors, and grid parsing independently of document state, locks, Shell, and public view objects. |
 
 Keep `__init__.py` limited to public exports. Import internal dependencies from their defining modules, never through the package entry point. Preserve the `namespaces.NS` compatibility import. Use `TYPE_CHECKING` for type-only view references. Keep deferred concrete-view imports at the navigation construction boundary so `Cell.blocks()` can construct nested views without an import-time cycle. Pass shared state through `DocumentOwner`; do not make child views call back into the public document facade.
+
+Name public-facing modules without a leading underscore. Prefix internal-only modules and packages with `_`; modules inside an internal package such as `_xml/` need no additional prefix. Keep `namespaces.py` as the compatibility entry point and Python special filenames such as `__init__.py` unchanged. Internal helpers in public modules also use a leading underscore. `__all__` controls star imports, not whether an interface is public; do not use it as a substitute for internal naming.
 
 ### State, Locking, and Caches
 
